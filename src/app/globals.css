@@ -2,26 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  ::selection {
+    background: rgba(0, 255, 136, 0.2);
+    color: #00FF88;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0A0A0F;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1E1E2E;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2E2E3E;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-neon-green text-bg-primary font-mono font-bold text-sm uppercase tracking-wider
+           rounded border-none cursor-pointer transition-all duration-200
+           hover:shadow-neon-strong hover:scale-[1.02] active:scale-[0.98];
+  }
+
+  .btn-outline {
+    @apply px-6 py-3 bg-transparent text-neon-green font-mono font-bold text-sm uppercase tracking-wider
+           rounded border border-neon-green/30 cursor-pointer transition-all duration-200
+           hover:border-neon-green hover:shadow-neon hover:bg-neon-green/5;
+  }
+
+  .card {
+    @apply bg-bg-card border border-border rounded-lg p-6 transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply card hover:border-border-glow hover:shadow-neon;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(30, 30, 46, 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30, 30, 46, 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .terminal-cursor::after {
+    content: "█";
+    @apply text-neon-green animate-pulse-glow ml-0.5;
+  }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Prose overrides for article rendering */
+.prose {
+  --tw-prose-body: #A0A0B0;
+  --tw-prose-headings: #E8E8ED;
+  --tw-prose-lead: #A0A0B0;
+  --tw-prose-links: #00FF88;
+  --tw-prose-bold: #E8E8ED;
+  --tw-prose-counters: #606070;
+  --tw-prose-bullets: #00FF88;
+  --tw-prose-hr: #1E1E2E;
+  --tw-prose-quotes: #A0A0B0;
+  --tw-prose-quote-borders: #00FF88;
+  --tw-prose-code: #00D4FF;
+  --tw-prose-pre-code: #A0A0B0;
+  --tw-prose-pre-bg: #12121A;
+  --tw-prose-th-borders: #1E1E2E;
+  --tw-prose-td-borders: #1E1E2E;
 }
