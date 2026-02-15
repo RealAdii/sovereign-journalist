@@ -35,6 +35,18 @@ export default async function HomePage() {
             zkTLS verified journalism
           </div>
 
+          <a
+            href="/api/attestation"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-neon-cyan/5 border border-neon-cyan/20 rounded font-mono text-[11px] font-semibold text-neon-cyan uppercase tracking-[2px] mb-6 ml-2 hover:bg-neon-cyan/10 transition-colors no-underline"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            TEE verified execution
+          </a>
+
           <h1 className="text-4xl md:text-6xl font-bold leading-tight tracking-tight mb-6 text-text-primary">
             Truth Needs No{" "}
             <span className="text-neon-green glow-text">Identity</span>

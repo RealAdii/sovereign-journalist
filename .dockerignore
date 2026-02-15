@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env*
+*.md
+.eslintrc*
+.vscode
+.idea
+*.test.*
+*.spec.*
+__tests__
+coverage
+.DS_Store

@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Polyfill fallbacks for Reclaim SDK (uses Node.js crypto/buffer)
