@@ -1,0 +1,39 @@
+name: Build and Push Docker Image
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_RECLAIM_APP_ID=${{ secrets.NEXT_PUBLIC_RECLAIM_APP_ID }}
+            NEXT_PUBLIC_RECLAIM_APP_SECRET=${{ secrets.NEXT_PUBLIC_RECLAIM_APP_SECRET }}
+            NEXT_PUBLIC_RECLAIM_PROVIDER_ID=${{ secrets.NEXT_PUBLIC_RECLAIM_PROVIDER_ID }}
+            NEXT_PUBLIC_PINATA_GATEWAY=${{ secrets.NEXT_PUBLIC_PINATA_GATEWAY }}
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
