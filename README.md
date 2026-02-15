@@ -1,24 +1,28 @@
 # Sovereign Journalist
 
-Anonymous whistleblower platform where sources prove credentials via zkTLS, get interviewed by an AI journalist, and publish uncensorable stories to IPFS — all running inside a Trusted Execution Environment so nobody (not even the operator) can access source identities.
+Anonymous whistleblower platform where sources prove credentials via [Reclaim Protocol](https://reclaimprotocol.org) zkTLS, get interviewed by an AI journalist, and publish uncensorable stories to IPFS — all running inside an [EigenCloud](https://www.eigencloud.xyz/) Trusted Execution Environment so nobody (not even the operator) can access source identities.
 
 **Live (TEE):** http://34.26.214.35:8000
 **TEE Verification:** https://verify-sepolia.eigencloud.xyz/app/0xcD6e2638Eb88E82294F622d19c5C416b6E6C8eD4
+
+### Built With
+
+[Reclaim Protocol](https://reclaimprotocol.org) | [EigenCloud](https://www.eigencloud.xyz/) | [Pinata](https://pinata.cloud) | [Google Gemini](https://ai.google.dev)
 
 ## How It Works
 
 1. **Verify** — Source proves their identity (e.g. employer, role) using [Reclaim Protocol](https://reclaimprotocol.org) zkTLS proofs. No personal info is revealed — only that the credential is valid.
 2. **Interview** — An AI journalist (Gemini) conducts a structured interview, asking follow-up questions based on the verified credential context.
 3. **Publish** — The article is generated from the interview transcript and published to IPFS via Pinata. It's permanently stored and uncensorable.
-4. **Trust** — The entire app runs inside an Intel TDX Trusted Execution Environment via EigenCompute. The `/api/attestation` endpoint provides cryptographic proof of the execution environment.
+4. **Trust** — The entire app runs inside an Intel TDX Trusted Execution Environment via [EigenCloud](https://www.eigencloud.xyz/) EigenCompute. The `/api/attestation` endpoint provides cryptographic proof of the execution environment.
 
 ## Tech Stack
 
 - **Next.js 14** — App Router, server components, API routes
-- **Reclaim Protocol** — zkTLS credential verification (proves identity without revealing it)
-- **Google Gemini** — AI journalist for conducting interviews and generating articles
-- **IPFS / Pinata** — Decentralized, permanent article storage
-- **EigenCompute** — Trusted Execution Environment (Intel TDX) deployment
+- **[Reclaim Protocol](https://reclaimprotocol.org)** — zkTLS credential verification (proves identity without revealing it)
+- **[Google Gemini](https://ai.google.dev)** — AI journalist for conducting interviews and generating articles
+- **IPFS / [Pinata](https://pinata.cloud)** — Decentralized, permanent article storage
+- **[EigenCloud](https://www.eigencloud.xyz/) EigenCompute** — Trusted Execution Environment (Intel TDX) deployment
 - **Tailwind CSS** — Dark-themed UI with neon accents
 
 ## Prerequisites
@@ -52,9 +56,9 @@ cp .env.example .env.local
 
 | Variable | Where to get it |
 |----------|----------------|
-| `NEXT_PUBLIC_RECLAIM_APP_ID` | [Reclaim Developer Portal](https://dev.reclaimprotocol.org/) |
-| `NEXT_PUBLIC_RECLAIM_APP_SECRET` | Reclaim Developer Portal |
-| `NEXT_PUBLIC_RECLAIM_PROVIDER_ID` | Reclaim Developer Portal (choose a provider) |
+| `NEXT_PUBLIC_RECLAIM_APP_ID` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) |
+| `NEXT_PUBLIC_RECLAIM_APP_SECRET` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) |
+| `NEXT_PUBLIC_RECLAIM_PROVIDER_ID` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) (choose a provider) |
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) |
 | `PINATA_API_KEY` | [Pinata](https://app.pinata.cloud/developers/api-keys) |
 | `PINATA_SECRET_KEY` | Pinata |
@@ -89,7 +93,7 @@ src/
   lib/
     gemini.ts                   # Gemini API client
     pinata.ts                   # IPFS/Pinata client
-    reclaim.ts                  # Reclaim SDK helpers
+    reclaim.ts                  # Reclaim Protocol SDK helpers
     session.ts                  # Server-side session management
     types.ts                    # TypeScript types
 ```
@@ -119,7 +123,7 @@ The Docker image uses a multi-stage Alpine build with Next.js standalone output 
 
 ## EigenCompute TEE Deployment
 
-The app is deployed to [EigenCompute](https://www.eigencloud.xyz/) on the Sepolia testnet, running inside an Intel TDX Trusted Execution Environment.
+The app is deployed to [EigenCloud](https://www.eigencloud.xyz/) EigenCompute on the Sepolia testnet, running inside an Intel TDX Trusted Execution Environment.
 
 **What this means:** The code running the AI journalist is tamper-proof and verifiable. Nobody — not even the server operator — can access source identities, modify interview logic, or read encryption keys. This is "trust by math, not trust by promise."
 
@@ -138,7 +142,7 @@ The GitHub Actions workflow (`.github/workflows/docker-build.yml`) automates thi
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/verify` | POST | Verify a Reclaim zkTLS proof |
+| `/api/verify` | POST | Verify a [Reclaim Protocol](https://reclaimprotocol.org) zkTLS proof |
 | `/api/interview` | POST | Send a message in the AI interview |
 | `/api/generate` | POST | Generate article from interview transcript |
 | `/api/publish` | POST | Publish article to IPFS |
