@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy to EigenCompute
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,3 +42,34 @@ jobs:
             NEXT_PUBLIC_RECLAIM_PROVIDER_ID=${{ secrets.NEXT_PUBLIC_RECLAIM_PROVIDER_ID }}
             NEXT_PUBLIC_PINATA_GATEWAY=${{ secrets.NEXT_PUBLIC_PINATA_GATEWAY }}
             NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      - name: Install ecloud CLI
+        run: npm install -g @layr-labs/ecloud-cli
+
+      - name: Create runtime env file
+        run: |
+          cat > .env.deploy <<EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          PINATA_API_KEY=${{ secrets.PINATA_API_KEY }}
+          PINATA_SECRET_KEY=${{ secrets.PINATA_SECRET_KEY }}
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          EOF
+
+      - name: Deploy to EigenCompute TEE
+        env:
+          ECLOUD_PRIVATE_KEY: ${{ secrets.ECLOUD_PRIVATE_KEY }}
+        run: |
+          printf 'n\n' | ecloud compute app deploy \
+            --name sovereign-journalist \
+            --image-ref ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LC }}:latest \
+            --environment sepolia \
+            --skip-profile \
+            --env-file .env.deploy \
+            --instance-type g1-standard-4t \
+            --log-visibility public \
+            --resource-usage-monitoring enable
+
+      - name: Show deployment info
+        env:
+          ECLOUD_PRIVATE_KEY: ${{ secrets.ECLOUD_PRIVATE_KEY }}
+        run: ecloud compute app info sovereign-journalist --environment sepolia
