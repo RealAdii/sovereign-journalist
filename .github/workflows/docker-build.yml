@@ -59,12 +59,15 @@ jobs:
         env:
           ECLOUD_PRIVATE_KEY: ${{ secrets.ECLOUD_PRIVATE_KEY }}
         run: |
+          mkdir -p /tmp/deploy-workdir
+          cp .env.deploy /tmp/deploy-workdir/.env
+          cd /tmp/deploy-workdir
           printf 'n\n' | ecloud compute app deploy \
             --name sovereign-journalist \
             --image-ref ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LC }}:latest \
             --environment sepolia \
             --skip-profile \
-            --env-file .env.deploy \
+            --env-file .env \
             --instance-type g1-standard-4t \
             --log-visibility public \
             --resource-usage-monitoring enable
