@@ -21,6 +21,7 @@
     "dev:capability": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/issue-dev-capability.mts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "1.1.0",
     "@reclaimprotocol/js-sdk": "5.8.2",
     "@starknet-io/get-starknet-discovery": "6.0.3",
     "@starknet-io/get-starknet-wallet-standard": "6.0.3",

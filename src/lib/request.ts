@@ -8,8 +8,8 @@ export function clientKey(req: NextRequest, route: string) {
   return `${route}:${ip}`;
 }
 
-export function rateLimited(req: NextRequest, route: string, limit: number, windowMs: number) {
-  return !enforceRateLimit(clientKey(req, route), limit, windowMs);
+export async function rateLimited(req: NextRequest, route: string, limit: number, windowMs: number) {
+  return !(await enforceRateLimit(clientKey(req, route), limit, windowMs));
 }
 
 export function jsonError(message: string, status: number, extra: Record<string, unknown> = {}) {

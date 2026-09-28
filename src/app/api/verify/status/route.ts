@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 // never handles the proof. The verification record is consumed only once a
 // proof exists, so pending polls do not burn it.
 export async function POST(req: NextRequest) {
-  if (rateLimited(req, "verify-status", 120, 10 * 60 * 1000)) return tooManyRequests();
+  if (await rateLimited(req, "verify-status", 120, 10 * 60 * 1000)) return tooManyRequests();
   const body = await readJson<{ verificationId?: string }>(req);
   if (!body || typeof body.verificationId !== "string") return jsonError("verificationId is required", 400);
 
-  const record = peekVerificationRecord(body.verificationId);
+  const record = await peekVerificationRecord(body.verificationId);
   if (!record) return jsonError("This verification request has expired or was already used", 410);
 
   let status;
@@ -28,14 +28,14 @@ export async function POST(req: NextRequest) {
   const session = status.session;
   const state = session?.statusV2 || "UNKNOWN";
   if (state.startsWith("ERROR") || state.endsWith("FAILED")) {
-    consumeVerificationRecord(body.verificationId);
+    await consumeVerificationRecord(body.verificationId);
     return NextResponse.json({ status: "failed", detail: `Reclaim reported ${state}` }, { status: 409 });
   }
   const proofs = session?.proofs || [];
   if (proofs.length === 0) return NextResponse.json({ status: "pending", detail: state });
 
   // A proof exists: consume the record first so a concurrent poll cannot issue twice.
-  const consumed = consumeVerificationRecord(body.verificationId);
+  const consumed = await consumeVerificationRecord(body.verificationId);
   if (!consumed) return jsonError("This verification request was already used", 410);
   try {
     const credential = await verifyReclaimProofs(
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       consumed.reclaimSessionId,
       consumed.providerVersion,
     );
-    const issued = issueCapability(credential);
+    const issued = await issueCapability(credential);
     const response: IssuedCapability & { status: "issued" } = {
       status: "issued",
       ...issued,

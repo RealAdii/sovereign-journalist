@@ -8,7 +8,7 @@ import type { IssuedCapability } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (rateLimited(req, "verify-complete", 20, 10 * 60 * 1000)) return tooManyRequests();
+  if (await rateLimited(req, "verify-complete", 20, 10 * 60 * 1000)) return tooManyRequests();
   const body = await readJson<{ verificationId?: string; proofs?: Proof[] | Proof }>(req);
   if (!body || typeof body.verificationId !== "string" || !body.proofs) {
     return jsonError("verificationId and proofs are required", 400);
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   // One-use: the record is deleted before the proof is checked, so a replay of
   // the same verificationId fails even if the proof is valid.
-  const record = consumeVerificationRecord(body.verificationId);
+  const record = await consumeVerificationRecord(body.verificationId);
   if (!record) {
     return jsonError("This verification request has expired or was already used", 410);
   }
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       record.reclaimSessionId,
       record.providerVersion,
     );
-    const issued = issueCapability(credential);
+    const issued = await issueCapability(credential);
     const response: IssuedCapability = {
       ...issued,
       credential: {

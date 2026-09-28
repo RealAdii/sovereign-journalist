@@ -1,8 +1,7 @@
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import type { VerifiedCredential } from "./types";
 import type { ProviderVersion } from "./reclaim";
+import { getSessionStore, resetSessionStoreForTests, type SessionStore } from "./session-store";
 
 type VerificationRecord = {
   type: "verification";
@@ -29,14 +28,17 @@ type RateLimitRecord = {
 };
 
 type StoredRecord = VerificationRecord | CapabilityRecord | RateLimitRecord;
-type StoreShape = Record<string, StoredRecord>;
 
 export const MAX_AI_REQUESTS = 30;
 export const CAPABILITY_TTL_MS = 2 * 60 * 60 * 1000;
 export const VERIFICATION_TTL_MS = 10 * 60 * 1000;
 
-const memoryStore = new Map<string, StoredRecord>();
-let loaded = false;
+// Storage lives behind src/lib/session-store.ts (file store for development,
+// Neon Postgres when SESSION_STORE_URL is set). Every function that touches
+// the store is async so hosted deployments share one-use state correctly.
+function store(): SessionStore<StoredRecord> {
+  return getSessionStore() as SessionStore<StoredRecord>;
+}
 
 function secret(name: "SESSION_SECRET" | "RATE_LIMIT_SECRET"): string {
   const value = process.env[name];
@@ -44,69 +46,6 @@ function secret(name: "SESSION_SECRET" | "RATE_LIMIT_SECRET"): string {
     throw new Error(`${name} must be at least 32 characters`);
   }
   return value;
-}
-
-function storePath(): string | null {
-  const configured = process.env.SESSION_STORE_PATH;
-  if (!configured) return null;
-  return path.resolve(process.cwd(), configured);
-}
-
-function loadStore() {
-  if (loaded) return;
-  loaded = true;
-  const file = storePath();
-  if (!file || !fs.existsSync(file)) return;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as StoreShape;
-    for (const [key, value] of Object.entries(parsed)) {
-      if (value.expiresAt > Date.now()) memoryStore.set(key, value);
-    }
-  } catch {
-    throw new Error("Unable to read the configured session store");
-  }
-}
-
-function persistStore() {
-  const file = storePath();
-  if (!file) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("SESSION_STORE_PATH is required in production");
-    }
-    return;
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const live: StoreShape = {};
-  for (const [key, value] of memoryStore) {
-    if (value.expiresAt > Date.now()) live[key] = value;
-  }
-  const temporary = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, JSON.stringify(live), { mode: 0o600 });
-  fs.renameSync(temporary, file);
-}
-
-function put(key: string, record: StoredRecord) {
-  loadStore();
-  memoryStore.set(key, record);
-  persistStore();
-}
-
-function get(key: string): StoredRecord | null {
-  loadStore();
-  const record = memoryStore.get(key);
-  if (!record) return null;
-  if (record.expiresAt <= Date.now()) {
-    memoryStore.delete(key);
-    persistStore();
-    return null;
-  }
-  return record;
-}
-
-function remove(key: string) {
-  loadStore();
-  memoryStore.delete(key);
-  persistStore();
 }
 
 function hash(value: string, purpose: string) {
@@ -120,17 +59,21 @@ function randomToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString("base64url");
 }
 
+function capabilityKey(token: string) {
+  return `cap:${hash(token, "capability")}`;
+}
+
 export function createVerificationRecord() {
   return { verificationId: randomToken(), challenge: randomToken() };
 }
 
-export function saveVerificationRecord(
+export async function saveVerificationRecord(
   verificationId: string,
   challenge: string,
   reclaimSessionId: string,
   providerVersion: ProviderVersion,
 ) {
-  put(`verify:${hash(verificationId, "verification")}`, {
+  await store().put(`verify:${hash(verificationId, "verification")}`, {
     type: "verification",
     expiresAt: Date.now() + VERIFICATION_TTL_MS,
     challenge,
@@ -139,20 +82,18 @@ export function saveVerificationRecord(
   });
 }
 
-export function peekVerificationRecord(verificationId: string) {
-  const record = get(`verify:${hash(verificationId, "verification")}`);
+export async function peekVerificationRecord(verificationId: string) {
+  const record = await store().get(`verify:${hash(verificationId, "verification")}`);
   return record?.type === "verification" ? record : null;
 }
 
-export function consumeVerificationRecord(verificationId: string) {
-  const key = `verify:${hash(verificationId, "verification")}`;
-  const record = get(key);
-  if (!record || record.type !== "verification") return null;
-  remove(key);
-  return record;
+// One-use: `take` removes and returns atomically, so a replay cannot win a race.
+export async function consumeVerificationRecord(verificationId: string) {
+  const record = await store().take(`verify:${hash(verificationId, "verification")}`);
+  return record?.type === "verification" ? record : null;
 }
 
-export function issueCapability(credential: VerifiedCredential) {
+export async function issueCapability(credential: VerifiedCredential) {
   const token = randomToken();
   const recoveryCode = randomToken(20);
   const devBypass =
@@ -167,35 +108,35 @@ export function issueCapability(credential: VerifiedCredential) {
     usedForPublish: false,
     aiRequests: 0,
   };
-  put(`cap:${hash(token, "capability")}`, record);
+  await store().put(capabilityKey(token), record);
   return { token, recoveryCode, expiresAt: record.expiresAt, bondStatus: record.bondStatus };
 }
 
-export function getCapability(token: string | undefined) {
+export async function getCapability(token: string | undefined) {
   if (!token) return null;
-  const record = get(`cap:${hash(token, "capability")}`);
+  const record = await store().get(capabilityKey(token));
   return record?.type === "capability" ? record : null;
 }
 
-export function requireBondedCapability(token: string | undefined) {
-  const record = getCapability(token);
+export async function requireBondedCapability(token: string | undefined) {
+  const record = await getCapability(token);
   if (!record) return { error: "invalid" as const };
   if (record.bondStatus === "blocked") return { error: "bond-blocked" as const };
   return { record };
 }
 
-export function recordAiRequest(token: string) {
-  const key = `cap:${hash(token, "capability")}`;
-  const record = get(key);
+export async function recordAiRequest(token: string) {
+  const key = capabilityKey(token);
+  const record = await store().get(key);
   if (!record || record.type !== "capability" || record.aiRequests >= MAX_AI_REQUESTS) return false;
   record.aiRequests += 1;
-  put(key, record);
+  await store().put(key, record);
   return true;
 }
 
-export function consumePublishCapability(token: string) {
-  const key = `cap:${hash(token, "capability")}`;
-  const record = get(key);
+export async function consumePublishCapability(token: string) {
+  const key = capabilityKey(token);
+  const record = await store().get(key);
   if (
     !record ||
     record.type !== "capability" ||
@@ -205,63 +146,60 @@ export function consumePublishCapability(token: string) {
     return null;
   }
   record.usedForPublish = true;
-  put(key, record);
+  await store().put(key, record);
   return record;
 }
 
-export function releasePublishCapability(token: string) {
-  const key = `cap:${hash(token, "capability")}`;
-  const record = get(key);
+export async function releasePublishCapability(token: string) {
+  const key = capabilityKey(token);
+  const record = await store().get(key);
   if (!record || record.type !== "capability") return;
   record.usedForPublish = false;
-  put(key, record);
+  await store().put(key, record);
 }
 
-export function cancelCapability(token: string | undefined) {
+export async function cancelCapability(token: string | undefined) {
   if (!token) return false;
-  const key = `cap:${hash(token, "capability")}`;
-  const record = get(key);
+  const key = capabilityKey(token);
+  const record = await store().get(key);
   if (!record || record.type !== "capability") return false;
-  remove(key);
+  await store().remove(key);
   return true;
 }
 
-export function resetStoreForTests() {
-  memoryStore.clear();
-  loaded = false;
+export async function resetStoreForTests() {
+  await store().clear();
+  resetSessionStoreForTests();
 }
 
-export function recoverCapability(recoveryCode: string) {
-  loadStore();
+export async function recoverCapability(recoveryCode: string) {
   const expected = hash(recoveryCode, "recovery");
-  for (const [key, record] of memoryStore) {
+  for (const [key, record] of await store().entries("cap:")) {
     if (
-      key.startsWith("cap:") &&
       record.type === "capability" &&
-      record.expiresAt > Date.now() &&
       crypto.timingSafeEqual(Buffer.from(record.recoveryHash), Buffer.from(expected))
     ) {
       const token = randomToken();
-      remove(key);
-      put(`cap:${hash(token, "capability")}`, record);
+      await store().remove(key);
+      await store().put(capabilityKey(token), record);
       return { token, expiresAt: record.expiresAt, bondStatus: record.bondStatus };
     }
   }
   return null;
 }
 
-export function enforceRateLimit(keyMaterial: string, limit: number, windowMs: number) {
+export async function enforceRateLimit(keyMaterial: string, limit: number, windowMs: number) {
   const key = `rate:${crypto
     .createHmac("sha256", secret("RATE_LIMIT_SECRET"))
     .update(keyMaterial)
     .digest("hex")}`;
-  const current = get(key);
+  const current = await store().get(key);
   if (!current || current.type !== "rate-limit") {
-    put(key, { type: "rate-limit", count: 1, expiresAt: Date.now() + windowMs });
+    await store().put(key, { type: "rate-limit", count: 1, expiresAt: Date.now() + windowMs });
     return true;
   }
   if (current.count >= limit) return false;
   current.count += 1;
-  put(key, current);
+  await store().put(key, current);
   return true;
 }

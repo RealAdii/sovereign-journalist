@@ -38,6 +38,21 @@ Added: see `.env.example`. AI: `AI_PROVIDER`, `OLLAMA_BASE_URL` (use `http://hos
 
 The publisher account, controlled by the operator, submits `publish_article` and pays the fee. The source's wallet is never involved. The fee shown to the source is informational. Because the same account submits every article, publication timing is the only onchain correlation between articles, and the article id carries nothing about the source.
 
+## Hosting on Vercel with Neon Postgres
+
+The file session store only works for one long-running process. Serverless hosting runs many instances with no shared disk, so one-use records (verification requests, single publish per session, rate-limit windows) must live in a shared database. `src/lib/session-store.ts` selects the store: `SESSION_STORE_URL` (a `postgres://` Neon connection string) enables `src/lib/session-store-postgres.ts`; otherwise `src/lib/session-store-file.ts` is used. Keys stay HMAC hashes, values are JSON, expiry is epoch milliseconds, and the verification record is consumed with a single `DELETE ... RETURNING` so two instances cannot both accept the same proof.
+
+Because a database call cannot be synchronous, every store-backed function in `src/lib/session.ts` is now `async`, and all API routes await them.
+
+Steps:
+
+1. Create a Neon project (https://console.neon.tech, free tier) and copy the pooled connection string. The table `session_records` is created on first use.
+2. The Vercel project is `adithya-dineshs-projects/sovereign-journalist` (linked with `npx vercel link --yes --project sovereign-journalist`). Set the server-side environment variables with `npx vercel env add <NAME> production` (and `preview`) for: `STARKNET_SEPOLIA_RPC_URL`, `STARKNET_PUBLISHER_ADDRESS`, `STARKNET_PUBLISHER_PRIVATE_KEY`, `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS`, `NEXT_PUBLIC_STRK20_POOL_ADDRESS`, `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID`, `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_PROVIDER`, `SESSION_SECRET`, `RATE_LIMIT_SECRET`, `SESSION_STORE_URL`, `APP_PUBLIC_URL` (the deployment URL, used for Reclaim callbacks and OpenRouter referer). Do not set `ALLOW_DEV_WITHOUT_PRIVATE_BOND` or `SESSION_STORE_PATH`.
+3. `vercel.json` sets `maxDuration` 300 s for `/api/publish` and `/api/generate` and 120 s for `/api/interview` (publish measured 13 to 20 s; drafts up to 100 s on hosted models). Region `fra1`.
+4. Preview first: `npx vercel` from the branch, then run `npm run check:sepolia` with the deployment's variables and open `/api/capabilities` on the preview URL. Production (`npx vercel --prod`) only after a separate decision; Vercel refuses production deploys whose commit author is not linked to the account, so commit as the Vercel-linked author.
+
+Local Postgres for tests: run `postgres:16-alpine` and Neon's `ghcr.io/neondatabase/wsproxy` in Docker, then `SESSION_STORE_TEST_URL=postgres://test:test@sj-pg/sessions SESSION_STORE_WS_PROXY=localhost:5488 npm test`. The exact commands are at the top of `tests/session-store.test.ts`. `SESSION_STORE_WS_PROXY` is for that local proxy only; never set it against Neon.
+
 ## Deployment procedure (unpaid, optional)
 
 There is no production deployment in this change. To run the Sepolia build somewhere:

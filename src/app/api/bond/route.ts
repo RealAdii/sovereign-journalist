@@ -21,7 +21,7 @@ export async function GET() {
 // session. The server never accepts one.
 export async function POST(req: NextRequest) {
   const body = await readJson<{ token?: string }>(req);
-  if (!getCapability(body?.token)) return jsonError("Invalid or expired session", 401);
+  if (!(await getCapability(body?.token))) return jsonError("Invalid or expired session", 401);
   return jsonError(
     "The anonymous bond is blocked on Sepolia. Public transfer receipts are not accepted because they would link you to this interview.",
     503,

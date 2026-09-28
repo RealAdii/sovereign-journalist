@@ -16,89 +16,90 @@ import {
 } from "@/lib/session";
 
 const credential = { provider: "provider-123", parameters: { role: "x" }, verifiedAt: "now" };
+const version = { providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] as string[] };
 
-beforeEach(() => {
-  resetStoreForTests();
+beforeEach(async () => {
+  await resetStoreForTests();
   delete process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND;
 });
 
 describe("verification records", () => {
-  it("are one-use", () => {
+  it("are one-use", async () => {
     const { verificationId, challenge } = createVerificationRecord();
-    saveVerificationRecord(verificationId, challenge, "sess", { providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] });
-    expect(consumeVerificationRecord(verificationId)).toMatchObject({ challenge, reclaimSessionId: "sess" });
-    expect(consumeVerificationRecord(verificationId)).toBeNull();
+    await saveVerificationRecord(verificationId, challenge, "sess", version);
+    expect(await consumeVerificationRecord(verificationId)).toMatchObject({ challenge, reclaimSessionId: "sess" });
+    expect(await consumeVerificationRecord(verificationId)).toBeNull();
   });
 
-  it("expire", () => {
+  it("expire", async () => {
     vi.useFakeTimers();
     const { verificationId, challenge } = createVerificationRecord();
-    saveVerificationRecord(verificationId, challenge, "sess", { providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] });
+    await saveVerificationRecord(verificationId, challenge, "sess", version);
     vi.advanceTimersByTime(11 * 60 * 1000);
-    expect(consumeVerificationRecord(verificationId)).toBeNull();
+    expect(await consumeVerificationRecord(verificationId)).toBeNull();
     vi.useRealTimers();
   });
 });
 
 describe("capabilities", () => {
-  it("start blocked unless the dev bypass is on", () => {
-    expect(issueCapability(credential).bondStatus).toBe("blocked");
+  it("start blocked unless the dev bypass is on", async () => {
+    expect((await issueCapability(credential)).bondStatus).toBe("blocked");
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
-    expect(issueCapability(credential).bondStatus).toBe("dev-bypass");
+    expect((await issueCapability(credential)).bondStatus).toBe("dev-bypass");
   });
 
-  it("gate AI and publishing on the bond", () => {
-    const { token } = issueCapability(credential);
-    expect(requireBondedCapability(token)).toEqual({ error: "bond-blocked" });
-    expect(requireBondedCapability("nope")).toEqual({ error: "invalid" });
-    expect(consumePublishCapability(token)).toBeNull();
+  it("gate AI and publishing on the bond", async () => {
+    const { token } = await issueCapability(credential);
+    expect(await requireBondedCapability(token)).toEqual({ error: "bond-blocked" });
+    expect(await requireBondedCapability("nope")).toEqual({ error: "invalid" });
+    expect(await consumePublishCapability(token)).toBeNull();
   });
 
-  it("publish is one-use and can be released after a failed transaction", () => {
+  it("publish is one-use and can be released after a failed transaction", async () => {
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
-    const { token } = issueCapability(credential);
-    expect(consumePublishCapability(token)).not.toBeNull();
-    expect(consumePublishCapability(token)).toBeNull();
-    releasePublishCapability(token);
-    expect(consumePublishCapability(token)).not.toBeNull();
+    const { token } = await issueCapability(credential);
+    expect(await consumePublishCapability(token)).not.toBeNull();
+    expect(await consumePublishCapability(token)).toBeNull();
+    await releasePublishCapability(token);
+    expect(await consumePublishCapability(token)).not.toBeNull();
   });
 
-  it("caps AI requests per session", () => {
+  it("caps AI requests per session", async () => {
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
-    const { token } = issueCapability(credential);
-    for (let i = 0; i < MAX_AI_REQUESTS; i += 1) expect(recordAiRequest(token)).toBe(true);
-    expect(recordAiRequest(token)).toBe(false);
+    const { token } = await issueCapability(credential);
+    for (let i = 0; i < MAX_AI_REQUESTS; i += 1) expect(await recordAiRequest(token)).toBe(true);
+    expect(await recordAiRequest(token)).toBe(false);
   });
 
-  it("recovery rotates the token and keeps state", () => {
+  it("recovery rotates the token and keeps state", async () => {
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
-    const { token, recoveryCode } = issueCapability(credential);
-    recordAiRequest(token);
-    const recovered = recoverCapability(recoveryCode);
+    const { token, recoveryCode } = await issueCapability(credential);
+    await recordAiRequest(token);
+    const recovered = await recoverCapability(recoveryCode);
     expect(recovered).not.toBeNull();
     expect(recovered!.token).not.toBe(token);
-    expect(getCapability(token)).toBeNull();
-    expect(getCapability(recovered!.token)?.aiRequests).toBe(1);
-    expect(recoverCapability("definitely-not-a-code-0123456789")).toBeNull();
+    expect(await getCapability(token)).toBeNull();
+    expect((await getCapability(recovered!.token))?.aiRequests).toBe(1);
+    expect(await recoverCapability("definitely-not-a-code-0123456789")).toBeNull();
   });
 
-  it("never stores the raw token or recovery code", () => {
-    const { token, recoveryCode } = issueCapability(credential);
-    const record = getCapability(token)!;
+  it("never stores the raw token or recovery code", async () => {
+    const { token, recoveryCode } = await issueCapability(credential);
+    const record = (await getCapability(token))!;
     expect(JSON.stringify(record)).not.toContain(token);
     expect(JSON.stringify(record)).not.toContain(recoveryCode);
   });
 });
 
 describe("rate limit", () => {
-  it("allows up to the limit inside a window and resets after", () => {
+  it("allows up to the limit inside a window and resets after", async () => {
     vi.useFakeTimers();
-    expect(enforceRateLimit("ip-a", 2, 1000)).toBe(true);
-    expect(enforceRateLimit("ip-a", 2, 1000)).toBe(true);
-    expect(enforceRateLimit("ip-a", 2, 1000)).toBe(false);
-    expect(enforceRateLimit("ip-b", 2, 1000)).toBe(true);
+    expect(await enforceRateLimit("ip-a", 2, 1000)).toBe(true);
+    expect(await enforceRateLimit("ip-a", 2, 1000)).toBe(true);
+    expect(await enforceRateLimit("ip-a", 2, 1000)).toBe(false);
+    expect(await enforceRateLimit("ip-b", 2, 1000)).toBe(true);
     vi.advanceTimersByTime(1001);
-    expect(enforceRateLimit("ip-a", 2, 1000)).toBe(true);
+    expect(await enforceRateLimit("ip-a", 2, 1000)).toBe(true);
     vi.useRealTimers();
   });
 });
