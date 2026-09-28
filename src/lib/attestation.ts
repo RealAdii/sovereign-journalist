@@ -174,8 +174,8 @@ export function receiptsForCredential(credential: VerifiedCredential): ReceiptRe
   return receiptsBySession.get(sessionKey(credential)) || [];
 }
 
-export function receiptsForToken(token: string | undefined): ReceiptRecord[] {
-  const capability = getCapability(token);
+export async function receiptsForToken(token: string | undefined): Promise<ReceiptRecord[]> {
+  const capability = await getCapability(token);
   return capability ? receiptsForCredential(capability.credential) : [];
 }
 
@@ -219,7 +219,7 @@ export async function auditReceipt(record: ReceiptRecord): Promise<ReceiptAudit>
 }
 
 export async function auditReceiptsForToken(token: string | undefined): Promise<ReceiptAudit[]> {
-  const records = receiptsForToken(token);
+  const records = await receiptsForToken(token);
   return Promise.all(records.map(auditReceipt));
 }
 
