@@ -62,7 +62,7 @@ export interface CapabilityStatus {
 export interface CapabilitiesReport {
   network: "SN_SEPOLIA";
   articleRegistry: CapabilityStatus & { address?: string };
-  aiInterview: CapabilityStatus & { provider: "ollama" | "gemini" | "none"; model: string; external: boolean };
+  aiInterview: CapabilityStatus & { provider: "ollama" | "openrouter" | "gemini" | "none"; model: string; external: boolean };
   anonymousBond: CapabilityStatus & { amount: string; token: "STRK" };
   encryptedTips: CapabilityStatus & { poolAddress?: string; poolClassHash?: string };
   confidentialCompute: CapabilityStatus;

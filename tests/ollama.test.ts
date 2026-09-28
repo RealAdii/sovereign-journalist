@@ -96,3 +96,26 @@ describe("AI provider selection", () => {
     expect(aiInfo().disclosure).toMatch(/not confidential compute/);
   });
 });
+
+describe("OpenRouter backend", () => {
+  it("parses an OpenAI-style SSE stream and is disclosed as external", async () => {
+    const { sseTextStream } = await import("@/lib/openrouter");
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('data: {"choices":[{"delta":{"content":"Hel"}}]}\n\ndata: {"choices":[{"delta":{"con'));
+        c.enqueue(enc.encode('tent":"lo"}}]}\n\ndata: [DONE]\n\n'));
+        c.close();
+      },
+    });
+    expect(await collect(sseTextStream(stream))).toBe("Hello");
+    process.env.OPENROUTER_API_KEY = "k";
+    process.env.AI_PROVIDER = "openrouter";
+    const info = aiInfo();
+    expect(info.provider).toBe("openrouter");
+    expect(info.external).toBe(true);
+    expect(info.disclosure).toMatch(/OpenRouter/);
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.AI_PROVIDER;
+  });
+});

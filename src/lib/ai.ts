@@ -1,8 +1,9 @@
 import type { ArticleDraft, ChatMessage, VerifiedCredential } from "./types";
 import * as gemini from "./gemini";
 import * as ollama from "./ollama";
+import * as openrouter from "./openrouter";
 
-export type AiProvider = "ollama" | "gemini" | "none";
+export type AiProvider = "ollama" | "openrouter" | "gemini" | "none";
 
 export interface AiInfo {
   provider: AiProvider;
@@ -18,7 +19,9 @@ export function aiProvider(): AiProvider {
   const chosen = (process.env.AI_PROVIDER || "").toLowerCase();
   if (chosen === "gemini") return gemini.geminiConfigured() ? "gemini" : "none";
   if (chosen === "ollama") return ollama.ollamaConfigured() ? "ollama" : "none";
+  if (chosen === "openrouter") return openrouter.openrouterConfigured() ? "openrouter" : "none";
   if (ollama.ollamaConfigured()) return "ollama";
+  if (openrouter.openrouterConfigured()) return "openrouter";
   if (gemini.geminiConfigured()) return "gemini";
   return "none";
 }
@@ -33,6 +36,16 @@ export function aiInfo(): AiInfo {
       label: `open model ${ollama.ollamaModel()} running on this server`,
       disclosure:
         `Interview messages and the draft article are processed by the open model ${ollama.ollamaModel()} running on this server through Ollama. No third-party AI provider receives the text. The server operator can still read it: this is not confidential compute.`,
+    };
+  }
+  if (provider === "openrouter") {
+    return {
+      provider,
+      model: openrouter.openrouterModel(),
+      external: true,
+      label: `open model ${openrouter.openrouterModel()} hosted through OpenRouter`,
+      disclosure:
+        `Interview messages and the draft article are sent to OpenRouter, which forwards them to a hosting company running the open model ${openrouter.openrouterModel()}. Those companies receive the full text, and the server operator can read it too: this is not confidential compute.`,
     };
   }
   if (provider === "gemini") {
@@ -50,7 +63,7 @@ export function aiInfo(): AiInfo {
     model: "",
     external: false,
     label: "no AI configured",
-    disclosure: "No AI backend is configured. Set OLLAMA_BASE_URL (local open model) or GEMINI_API_KEY (Google).",
+    disclosure: "No AI backend is configured. Set OLLAMA_BASE_URL (local open model), OPENROUTER_API_KEY (hosted open model), or GEMINI_API_KEY (Google).",
   };
 }
 
@@ -61,12 +74,13 @@ export function aiConfigured() {
 export async function aiReachable() {
   const provider = aiProvider();
   if (provider === "ollama") return ollama.ollamaReachable();
-  return provider === "gemini";
+  return provider === "gemini" || provider === "openrouter";
 }
 
 export function conductInterviewStream(messages: ChatMessage[], credential: VerifiedCredential): Promise<ReadableStream<Uint8Array>> {
   const provider = aiProvider();
   if (provider === "ollama") return ollama.conductInterviewStream(messages, credential);
+  if (provider === "openrouter") return openrouter.conductInterviewStream(messages, credential);
   if (provider === "gemini") return gemini.conductInterviewStream(messages, credential);
   return Promise.reject(new Error("No AI backend is configured"));
 }
@@ -74,6 +88,7 @@ export function conductInterviewStream(messages: ChatMessage[], credential: Veri
 export function generateArticle(messages: ChatMessage[], credential: VerifiedCredential): Promise<ArticleDraft> {
   const provider = aiProvider();
   if (provider === "ollama") return ollama.generateArticle(messages, credential);
+  if (provider === "openrouter") return openrouter.generateArticle(messages, credential);
   if (provider === "gemini") return gemini.generateArticle(messages, credential);
   return Promise.reject(new Error("No AI backend is configured"));
 }
