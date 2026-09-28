@@ -1,5 +1,5 @@
 import { RpcProvider } from "starknet";
-import { aiInfo, aiReachable } from "./ai";
+import { aiInfoVerified, aiReachable } from "./ai";
 import { publisherConfigured, registryConfigured } from "./onchain";
 import type { CapabilitiesReport } from "./types";
 
@@ -37,7 +37,7 @@ export async function poolStatus() {
 }
 
 export async function capabilitiesReport(): Promise<CapabilitiesReport> {
-  const [pool, ai, reachable] = await Promise.all([poolStatus(), Promise.resolve(aiInfo()), aiReachable()]);
+  const [pool, ai, reachable] = await Promise.all([poolStatus(), aiInfoVerified(), aiReachable()]);
   const tipInboxConfigured = Boolean(process.env.NEXT_PUBLIC_TIP_INBOX_ADDRESS);
   return {
     network: "SN_SEPOLIA",
