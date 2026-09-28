@@ -29,7 +29,11 @@ export async function POST(req: NextRequest) {
   const state = session?.statusV2 || "UNKNOWN";
   if (state.startsWith("ERROR") || state.endsWith("FAILED")) {
     await consumeVerificationRecord(body.verificationId);
-    return NextResponse.json({ status: "failed", detail: `Reclaim reported ${state}` }, { status: 409 });
+    const reclaimError = (session as { error?: { type?: string; message?: string } } | undefined)?.error;
+    const detail = reclaimError?.message
+      ? `Reclaim reported ${state}: ${reclaimError.message}`
+      : `Reclaim reported ${state}. This happens on Reclaim's side while generating the proof. Retry, or open the portal in a new tab if the embedded window did not finish.`;
+    return NextResponse.json({ status: "failed", detail, reclaimState: state }, { status: 409 });
   }
   const proofs = session?.proofs || [];
   if (proofs.length === 0) return NextResponse.json({ status: "pending", detail: state });

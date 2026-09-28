@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BOND_AMOUNT_STRK, BOND_MISSING, DEV_BYPASS_ACTIVE } from "@/lib/capabilities";
+import { BOND_AMOUNT_STRK, BOND_MISSING } from "@/lib/capabilities";
+import { bondBypassActive, bondBypassReason } from "@/lib/bypass";
 import { BondError, bondBlockers, bondConfigured, issueBondQuote, poolFeeFri, sweepExpiringBonds, treasuryAddress, treasuryRegistered, TREASURY_NOT_REGISTERED } from "@/lib/bond";
 import { getCapability } from "@/lib/session";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
@@ -12,8 +13,8 @@ export const maxDuration = 120;
 // only); "blocked" lists exactly what is missing.
 export async function GET() {
   const base = { network: "SN_SEPOLIA" as const, token: "STRK" as const, amount: BOND_AMOUNT_STRK, refundable: true };
-  if (DEV_BYPASS_ACTIVE) {
-    return NextResponse.json({ ...base, status: "dev-bypass", missing: BOND_MISSING });
+  if (bondBypassActive()) {
+    return NextResponse.json({ ...base, status: "dev-bypass", reason: bondBypassReason(), missing: BOND_MISSING });
   }
   if (!bondConfigured()) {
     return NextResponse.json({ ...base, status: "blocked", missing: [...bondBlockers(), ...BOND_MISSING] });

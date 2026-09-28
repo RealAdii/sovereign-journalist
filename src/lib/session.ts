@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { BondRecord, BondStatus, VerifiedCredential } from "./types";
+import { bondBypassActive } from "./bypass";
 import type { ProviderVersion } from "./reclaim";
 import { getSessionStore, resetSessionStoreForTests, type SessionStore } from "./session-store";
 
@@ -99,9 +100,7 @@ export async function consumeVerificationRecord(verificationId: string) {
 export async function issueCapability(credential: VerifiedCredential) {
   const token = randomToken();
   const recoveryCode = randomToken(20);
-  const devBypass =
-    process.env.NODE_ENV !== "production" &&
-    process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND === "true";
+  const devBypass = bondBypassActive();
   const record: CapabilityRecord = {
     type: "capability",
     expiresAt: Date.now() + CAPABILITY_TTL_MS,

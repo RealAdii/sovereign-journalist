@@ -21,8 +21,10 @@ export const TIP_MISSING = [
   "An editorial recipient key ceremony, a recipient discovery indexer, and a decryption client that were tested end to end",
 ];
 
-export const DEV_BYPASS_ACTIVE =
-  process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND === "true";
+import { bondBypassActive, bondBypassReason } from "./bypass";
+
+/** Evaluated per call so tests and env changes are honoured. */
+export const DEV_BYPASS_ACTIVE = bondBypassActive();
 
 export async function poolStatus() {
   const poolAddress = process.env.NEXT_PUBLIC_STRK20_POOL_ADDRESS;
@@ -66,11 +68,11 @@ export async function capabilitiesReport(): Promise<CapabilitiesReport> {
     },
     anonymousBond: {
       configured: bondConfigured(),
-      enabled: DEV_BYPASS_ACTIVE || bondLive,
+      enabled: bondBypassActive() || bondLive,
       amount: BOND_AMOUNT_STRK,
       token: "STRK",
-      reason: DEV_BYPASS_ACTIVE
-        ? "Development bypass is active. No bond is collected and no anonymity is claimed. This mode is refused in production."
+      reason: bondBypassActive()
+        ? bondBypassReason()
         : bondLive
           ? `The 1 STRK bond is paid as a private STRK20 transfer to the treasury ${treasuryAddress()} and refunded the same way. Amounts inside the pool are encrypted; the treasury confirms the payment with its viewing key. The pool charges its own fee per private operation on top.`
           : bondConfigured()

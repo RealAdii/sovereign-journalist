@@ -12,6 +12,7 @@ interface BondInfo {
   amount: string;
   refundable: boolean;
   status: "blocked" | "dev-bypass" | "enabled";
+  reason?: string;
   treasury?: string;
   poolFeeFri?: string | null;
   missing: string[];
@@ -179,12 +180,11 @@ export default function BondGate() {
 
         {info?.status === "dev-bypass" && (
           <>
-            <Notice tone="warn" title="development bypass">
-              This server runs with ALLOW_DEV_WITHOUT_PRIVATE_BOND. No bond is collected and no
-              anonymity is claimed. This mode is refused in production builds.
+            <Notice tone="warn" title="no bond on this deployment">
+              {info.reason || "No bond is collected on this server, so the spam control is off and no anonymity is claimed for payments."}
             </Notice>
             <button onClick={() => router.push("/submit/interview")} className="btn-primary w-full">
-              Continue without a bond (development)
+              Continue without a bond (testnet)
             </button>
           </>
         )}

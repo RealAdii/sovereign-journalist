@@ -68,7 +68,11 @@ export default function VerificationFlow() {
     [finish, stopAll],
   );
 
-  const handleVerify = useCallback(async () => {
+  const [mode, setMode] = useState<"embedded" | "tab">("embedded");
+
+  const handleVerify = useCallback(async (openInTab = false) => {
+    const useTab = openInTab || mode === "tab";
+    if (openInTab) setMode("tab");
     setStatus("starting");
     setError(null);
     try {
@@ -85,7 +89,7 @@ export default function VerificationFlow() {
       // Wait a tick so the overlay container is mounted before embedding.
       await new Promise((r) => setTimeout(r, 0));
       handleRef.current = await request.triggerReclaimFlow(
-        containerRef.current ? { target: containerRef.current } : undefined,
+        !useTab && containerRef.current ? { target: containerRef.current } : undefined,
       );
       // The server watches Reclaim for the proof and issues the session itself.
       pollRef.current = setInterval(() => poll(verificationId), POLL_MS);
@@ -95,7 +99,7 @@ export default function VerificationFlow() {
       setError(err instanceof Error ? err.message : "Verification could not start");
       setStatus("error");
     }
-  }, [poll, stopAll]);
+  }, [poll, stopAll, mode]);
 
   const cancel = useCallback(() => {
     stopAll();
@@ -157,7 +161,7 @@ export default function VerificationFlow() {
         </div>
 
         <button
-          onClick={handleVerify}
+          onClick={() => void handleVerify(false)}
           disabled={status === "starting" || status === "verifying" || status === "submitting"}
           className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -170,10 +174,24 @@ export default function VerificationFlow() {
 
         <div className="mt-4 space-y-2">
           {status === "error" && error && <Notice tone="error">{error}</Notice>}
+          {status === "error" && mode === "embedded" && (
+            <button
+              onClick={() => void handleVerify(true)}
+              className="btn-outline !text-xs w-full"
+            >
+              Open Reclaim in a new tab instead
+            </button>
+          )}
+          {mode === "tab" && status === "verifying" && (
+            <>
+              <Notice tone="info">Reclaim opened in a new tab. Finish the login there; this page moves on by itself once the proof is verified.</Notice>
+              <button onClick={cancel} className="btn-outline !text-xs w-full">Cancel verification</button>
+            </>
+          )}
         </div>
       </div>
 
-      {status === "verifying" && (
+      {status === "verifying" && mode === "embedded" && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex flex-col p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Reclaim verification">
           <div className="flex items-center justify-between gap-3 px-2 pb-2 shrink-0">
             <span className="font-mono text-[11px] text-text-secondary">
