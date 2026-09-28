@@ -36,6 +36,15 @@ export default function PublishConfirmation({ result, ai }: { result: PublishRes
           Your session token was discarded from this browser. The interview transcript was not stored
           on the server and is not on Starknet.{ai.external ? ` ${ai.label} received it during the interview.` : " It was processed only on this server."}
         </div>
+        {ai.provider === "phala" && (
+          <div className={`rounded p-3 mb-6 text-left text-xs border ${ai.attestation?.verified ? "bg-neon-green/5 border-neon-green/20 text-text-secondary" : "bg-error/5 border-error/20 text-error"}`}>
+            {ai.attestation?.verified
+              ? `The AI ran inside an attested GPU TEE (${ai.attestation.verdict}). Each reply carried a signed receipt binding the request and response hashes to the attested keys; the audit is at `
+              : "The AI enclave attestation was not verified for this session. Details at "}
+            <a href="/api/attestation" target="_blank" rel="noopener noreferrer" className="text-neon-cyan">/api/attestation</a>.
+            The server operator could still read the text in transit.
+          </div>
+        )}
         <Link href={`/article/${result.articleId}`} className="btn-primary inline-block">
           Open the article
         </Link>

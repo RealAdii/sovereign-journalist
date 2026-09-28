@@ -104,8 +104,37 @@ Decision: `POST /api/tips` always returns 503 and stores nothing. The tip page h
 
 | Backend | Selection | Where the text goes | Status |
 | --- | --- | --- | --- |
-| Ollama, model `qwen2.5:7b` (Apache-2.0 weights, 4.7 GB q4) | default when `OLLAMA_BASE_URL` is set, or `AI_PROVIDER=ollama` | stays on the server that runs Ollama | installed on the dev machine on 2026-09-28 (`brew install ollama`, Ollama from Homebrew, Apple M-series, 24 GB RAM) |
+| Phala confidential inference, model `deepseek/deepseek-v3.2` (attested GPU TEE) | preferred whenever `PHALA_API_KEY` is set, or `AI_PROVIDER=phala` | Phala's gateway inside an Intel TDX VM with NVIDIA GPU enclaves; this server verifies the attestation before sending anything | verifier and receipts implemented 2026-09-29; attestation verified live without a key; inference needs a Phala Cloud key |
+| OpenRouter pinned to provider `phala`, model `deepseek/deepseek-v3.2` | `AI_PROVIDER=openrouter` plus `OPENROUTER_API_KEY` | OpenRouter (in transit) and Phala's TEE | works live; no attestation or receipts pass through OpenRouter, so the UI says "per routing, not independently verified" |
+| Ollama, model `qwen2.5:7b` (Apache-2.0 weights, 4.7 GB q4) | `OLLAMA_BASE_URL` set, or `AI_PROVIDER=ollama` | stays on the server that runs Ollama | installed on the dev machine on 2026-09-28 (`brew install ollama`, Apple M-series, 24 GB RAM) |
 | Google Gemini `gemini-2.5-flash` | `AI_PROVIDER=gemini` plus `GEMINI_API_KEY` | Google | kept as an optional backend; no key available here |
+
+### Attested confidential inference (Phala ACI), verified 2026-09-29
+
+Verifier: `@phala/aci-verifier` 0.7.2 (`connectAci` from `/runtime`), which verifies the Intel TDX quote locally with `@phala/dcap-qvl` 0.6.x using collateral from the Phala PCCS. Live result against `https://inference.phala.com` with no API key, pinned Node transport:
+
+```
+VERIFIED (6 pass, 1 skipped: custody policy not implemented)
+pass id-1 hardware quote verifies to the TEE vendor root and binds report_data (TCB UpToDate)
+pass id-2 keyset JCS -> digest -> statement -> report_data recomputed for our nonce
+pass id-3 keyset not expired (valid until 2026-10-17T15:25:55Z)
+pass id-4 the running compose is measured into the quote, compose-hash 0637b3d506c80c0328c84697c290f5fb7eef811c8d022124e04ee9b0f5f99567
+pass policy-os RTMR3 os-image-hash satisfies the production allowlist
+skip id-5 private-key custody appraisal (not implemented in the library)
+pass id-6 the TLS channel actually used is bound to the attested keyset (SPKI pinned)
+source provenance: https://github.com/Dstack-TEE/private-ai-gateway.git @ 8d0a666a2418898a8c823a9af49a634edd122a64
+receipt signing key: dstack-kms-receipt-ed25519-v1 (ed25519)
+```
+
+How the app uses it (`src/lib/attestation.ts`, `src/lib/phala.ts`):
+
+- The server opens one SPKI-pinned connection per process, re-verifies every 10 minutes, and refuses to send any text when any check fails (`tee: false`, provider disabled, UI says so).
+- Every chat call goes through the pinned `fetch`; the gateway returns an `x-receipt-id`. Receipt ids (never text) are kept in memory per session. `POST /api/attestation { token }` audits them: Ed25519 signature under the attested keyset, request and response body hashes, model, served time. `GET /api/attestation` returns the transcript, compose hash, provenance, and keys.
+- `PHALA_ACCEPTED_COMPOSE_HASHES` pins reviewed release hashes; empty means measured and reported, not release-pinned. The library does not reconstruct MRTD/RTMR0-2 from the dstack image and does not implement the KMS custody check; both are stated in the transcript and in the UI copy as limits.
+- Models on the gateway (`GET /v1/models`, public): `deepseek/deepseek-v3.2` (default), `qwen/qwen3.8-27b`, `openai/gpt-oss-120b`, `moonshotai/kimi-k2.6`, `z-ai/glm-5.3` (mandatory reasoning, exhausts the token budget before content, so not used).
+- Still needed to run inference: a Phala Cloud API key (`PHALA_API_KEY`). No free tier is documented; DeepSeek V3.2 is $1.00 per million tokens in and out.
+
+What this proves and does not prove: the gateway software measured into the quote is the open-source private-ai-gateway at the commit above, running on genuine TDX hardware, and each reply is signed by a key that only that measured workload holds. It does not prove that this server's operator cannot read the text, because the request is built here and the reply is streamed through here in the clear.
 
 Wire format used for Ollama: `POST /api/chat` with `stream: true` returns NDJSON lines `{ message: { role, content }, done }`; article drafting uses `stream: false, format: "json"`. Context window is set to 16384 tokens and replies are capped (700 tokens interview, 4096 article) so a 60-message transcript still fits. Docker deployments reach a host Ollama at `http://host.docker.internal:11434`.
 
