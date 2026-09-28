@@ -9,13 +9,14 @@ Generated 2026-09-28 on macOS (Darwin 25.3.0, aarch64), Node 22.14.0, Scarb 2.14
 > vitest run
  RUN  v3.2.7 /Users/adithya/sovereign-journalist-sepolia
  ✓ tests/gemini.test.ts (2 tests) 2ms
+ ✓ tests/ollama.test.ts (7 tests) 6ms
  ✓ tests/reclaim.test.ts (8 tests) 4ms
  ✓ tests/session.test.ts (9 tests) 5ms
  ✓ tests/encoding.test.ts (9 tests) 4ms
  ✓ tests/render.test.tsx (1 test) 10ms
  ✓ tests/routes.test.ts (14 tests) 14ms
  Test Files  6 passed (6)
-      Tests  43 passed (43)
+      Tests  50 passed (50)
 ```
 
 What they cover:
@@ -149,6 +150,19 @@ With the dev server pointed at the deployed registry, `/` lists the three articl
 
 All jobs passed on both the push and the pull request runs: Typecheck, lint, test, build (1m21s); Cairo build and tests; Browser flow tests (mocked backend) (1m16s); Sepolia read-only compatibility check (24s).
 
+## AI interview and drafting against the local open model (2026-09-28, 22:15)
+
+Backend: Ollama (Homebrew service) serving `qwen2.5:7b` on an Apple M-series laptop with 24 GB RAM. Driven through the real app routes with a dev capability from `npm run dev:capability` (dev bypass on), not through the mocked e2e.
+
+| Step | Result |
+| --- | --- |
+| `/api/capabilities` | `aiInterview: { provider: "ollama", model: "qwen2.5:7b", external: false, enabled: true }` with the local disclosure text |
+| Interview turn 1 (streamed) | HTTP 200, first token after 3.5 s, complete reply in 4.4 s, 221 bytes: a single follow-up question, no request for identifying details |
+| Article draft from a 6-message transcript | HTTP 200 in 7.6 s, 1242 body characters, valid JSON, contains the required "What has been proven" and "What has not been independently corroborated" sections, no confidence score, no em or en dashes |
+| Raw wire format | `POST /api/chat` streamed NDJSON `{ message: { role, content }, done }` and `format: "json"` non-streamed reply confirmed with curl before the parser was trusted; about 50 tokens per second |
+
+Caveat observed: the 7B model wrote "the source, who works in finance" from a transcript that only said "our finance team". Small models infer detail. The source-side editor and the identifying-details checklist before publication remain the control, and the prompt's "remove identifying details" rule is advisory only.
+
 ## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
 
 These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.
@@ -175,6 +189,6 @@ Observed discrepancy: for an unknown article id, `next start` returns HTTP 404 w
 | Item | Blocker | How to run once unblocked |
 | --- | --- | --- |
 | Live Reclaim proof, replay attempt against a live attestor | a person completing the LinkedIn flow in the Reclaim app | credentials are configured and `/api/verify/start` returns a signed request; `npm run dev`, /submit/verify, then resubmit the same proof and expect 410 |
-| Interview and drafting | `GEMINI_API_KEY` | `npm run dev` with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` |
+| Interview and drafting through Google Gemini | `GEMINI_API_KEY` and `AI_PROVIDER=gemini` | optional; the local Ollama path is verified above |
 | Browser end-to-end against live Reclaim, Gemini, and Sepolia | all of the above | run `npm run test:e2e` after replacing the `page.route` mocks with real credentials; the mocked version passes today |
 | Two-wallet bond linkage analysis | no private bond path exists | blocked by design, see docs/COMPATIBILITY.md |

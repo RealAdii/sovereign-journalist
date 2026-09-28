@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { recordAiRequest, requireBondedCapability } from "@/lib/session";
-import { conductInterviewStream, geminiConfigured } from "@/lib/gemini";
+import { aiConfigured, conductInterviewStream } from "@/lib/ai";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
 import { validMessages } from "@/lib/messages";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       : jsonError("Invalid or expired session", 401);
   }
   if (!validMessages(body.messages)) return jsonError("Invalid messages", 400);
-  if (!geminiConfigured()) return jsonError("The AI interview is not configured", 503);
+  if (!aiConfigured()) return jsonError("The AI interview is not configured", 503);
   if (!recordAiRequest(body.token!)) {
     return jsonError("This session has reached its AI request limit", 429);
   }

@@ -7,7 +7,7 @@ This is a testnet build. The registry is deployed on Sepolia at `0x2be142c378dbf
 ## Honest summary of the privacy boundary
 
 - **Reclaim proves a login, not a claim.** The proof discloses whatever the provider template extracts. The UI shows the disclosed field names after verification.
-- **Google receives the interview.** Every interview message and the draft article are sent to the Gemini API. There is no confidential compute and no attestation in this build; `/api/attestation` says so.
+- **The interview runs on an open model on this server by default.** Ollama serves `qwen2.5:7b` locally, so no third-party AI provider receives the text. The server operator can still read it; there is no confidential compute and no attestation in this build, and `/api/attestation` says so. Google Gemini remains available as an opt-in backend (`AI_PROVIDER=gemini`) and the UI then discloses Google.
 - **The article is public forever.** Only text the source approved is written, by the operator's publisher account, never by the source's wallet.
 - **The anonymous 1 STRK bond is blocked.** No verified private payment and refund path exists on Sepolia yet, so the server refuses every bond receipt rather than accept a public transfer that would link the source. Interview and publishing are therefore disabled unless the development bypass is on.
 - **Encrypted tips are blocked.** The STRK20 private messaging page is an RFP, not an API. A helper contract is drafted and tested but not deployed or wired.
@@ -19,7 +19,7 @@ Labels used in articles: **credential proven** (Reclaim proof verified), **alleg
 1. `/submit`: privacy limits, costs, and live capability status.
 2. `/submit/verify`: server creates a signed Reclaim request bound to a fresh challenge, the browser runs the flow, the server verifies the proof once and issues a 2 hour token plus a recovery code.
 3. `/submit/bond`: shows the 1 STRK Sepolia bond, currently blocked with the missing dependencies.
-4. `/submit/interview`: disclosure gate, then the interview, then the editor with byte counters, a Sepolia fee estimate, and an irreversibility acknowledgement.
+4. `/submit/interview`: disclosure gate naming the actual AI backend, then the interview, then the editor with byte counters, a Sepolia fee estimate, and an irreversibility acknowledgement.
 5. Publish: the server submits `publish_article`, waits for `ACCEPTED_ON_L2`, reads every chunk back and compares byte for byte, then shows the article id and transaction.
 6. `/article/<id>`: rendered from Starknet with a provenance panel. Legacy `/article/<cid>` links render read-only from IPFS.
 7. `/submit/recover`: recovery code entry after a lost tab or failed request.
@@ -40,7 +40,7 @@ docs                         ARCHITECTURE, THREAT_MODEL, COMPATIBILITY, MIGRATIO
 
 ## Running locally
 
-Requirements: Node 22, npm, Scarb 2.14.0, Starknet Foundry 0.57.0.
+Requirements: Node 22, npm, Scarb 2.14.0, Starknet Foundry 0.57.0, and Ollama for the interview (`brew install ollama && brew services start ollama && ollama pull qwen2.5:7b`).
 
 ```bash
 npm ci
@@ -64,7 +64,8 @@ All secrets are server-only. No `NEXT_PUBLIC_*` variable holds a secret. See `.e
 | `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS` | deployed registry, from `npm run deploy:sepolia` |
 | `STARKNET_PUBLISHER_ADDRESS`, `STARKNET_PUBLISHER_PRIVATE_KEY` | the only account allowed to publish, funded with Sepolia STRK |
 | `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID` | Reclaim, server side only |
-| `GEMINI_API_KEY` | Google Gemini |
+| `AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | local open model through Ollama (default, no key) |
+| `GEMINI_API_KEY` | optional Google Gemini backend, only used with `AI_PROVIDER=gemini` |
 | `SESSION_SECRET`, `RATE_LIMIT_SECRET` | two independent random values, 32+ characters, no fallback |
 | `SESSION_STORE_PATH` | file for the one-use session store, required in production, single instance only |
 | `NEXT_PUBLIC_STRK20_POOL_ADDRESS` | Sepolia privacy pool, used only for the live capability check |
@@ -95,4 +96,4 @@ These need a funded publisher account and were not run for this change (no secre
 
 ## Built with
 
-[Reclaim Protocol](https://reclaimprotocol.org) · [Starknet](https://docs.starknet.io/) · [starknet.js 10.4.0](https://github.com/starknet-io/starknet.js) · [STRK20](https://strk20.starknet.io/) (blocked paths) · [Google Gemini](https://ai.google.dev)
+[Reclaim Protocol](https://reclaimprotocol.org) · [Starknet](https://docs.starknet.io/) · [starknet.js 10.4.0](https://github.com/starknet-io/starknet.js) · [STRK20](https://strk20.starknet.io/) (blocked paths) · [Ollama](https://ollama.com) with [Qwen2.5](https://github.com/QwenLM/Qwen2.5) · optional [Google Gemini](https://ai.google.dev)

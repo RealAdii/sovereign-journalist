@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiInfo } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET() {
     attestationVerified: false,
     provider: "none",
     dataProcessing: {
-      aiProvider: "Google Gemini receives interview messages and the draft article in plain text.",
+      aiProvider: aiInfo().disclosure,
       operator: "The server operator can read requests handled by this process.",
       chain: "Approved public articles are written to Starknet Sepolia and are public forever.",
     },

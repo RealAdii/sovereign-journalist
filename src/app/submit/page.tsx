@@ -30,7 +30,7 @@ export default async function SubmitPage() {
             <h2 id="limits" className="font-mono text-[11px] text-text-muted uppercase tracking-wider mb-3">privacy limits and costs, read first</h2>
             <ul className="text-xs text-text-secondary space-y-2 list-disc pl-5">
               <li><strong className="text-text-primary">Reclaim proves a login, not a claim.</strong> The proof can disclose provider fields such as an employer or an email, depending on the template. We show you exactly what was disclosed.</li>
-              <li><strong className="text-text-primary">Google receives the interview.</strong> Messages and the draft go to the Gemini API. No confidential compute or attestation is verified in this build.</li>
+              <li><strong className="text-text-primary">{caps.aiInterview.external ? "A third party receives the interview." : "The interview stays on this server."}</strong> {caps.aiInterview.reason}</li>
               <li><strong className="text-text-primary">The article is public forever.</strong> Full title, subtitle, and body are stored in a Sepolia contract. Only what you approve is written. Nothing else from the session goes onchain.</li>
               <li><strong className="text-text-primary">You do not pay to publish.</strong> The server&apos;s publisher account submits the transaction, so your wallet is never involved. The fee is shown before you confirm.</li>
               <li><strong className="text-text-primary">Bond: 1 STRK on Sepolia, refundable.</strong> Currently blocked, see below. We do not accept a public transfer in its place.</li>

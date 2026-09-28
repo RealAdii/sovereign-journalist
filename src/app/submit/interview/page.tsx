@@ -1,6 +1,9 @@
 import Header from "@/components/Header";
 import StepIndicator from "@/components/StepIndicator";
 import ChatInterface from "@/components/ChatInterface";
+import { aiInfo } from "@/lib/ai";
+
+export const dynamic = "force-dynamic";
 
 export default function InterviewPage() {
   return (
@@ -10,7 +13,7 @@ export default function InterviewPage() {
         <div className="pt-4 px-4 sm:px-6">
           <StepIndicator currentStep={3} />
         </div>
-        <ChatInterface />
+        <ChatInterface ai={aiInfo()} />
       </main>
     </>
   );

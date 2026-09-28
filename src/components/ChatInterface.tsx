@@ -8,6 +8,7 @@ import ChatMessage from "./ChatMessage";
 import ArticleEditor from "./ArticleEditor";
 import PublishConfirmation from "./PublishConfirmation";
 import Notice from "./Notice";
+import type { AiInfo } from "@/lib/ai";
 
 const MIN_MESSAGES_TO_DRAFT = 6;
 
@@ -16,7 +17,7 @@ async function readError(res: Response, fallback: string) {
   return data.error || `${fallback} (${res.status})`;
 }
 
-export default function ChatInterface() {
+export default function ChatInterface({ ai }: { ai: AiInfo }) {
   const router = useRouter();
   const [session, setSession] = useState<ClientSession | null | undefined>(undefined);
   const [disclosed, setDisclosed] = useState(false);
@@ -166,7 +167,7 @@ export default function ChatInterface() {
   if (published) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)] px-4">
-        <PublishConfirmation result={published} />
+        <PublishConfirmation result={published} ai={ai} />
       </div>
     );
   }
@@ -179,11 +180,9 @@ export default function ChatInterface() {
         <div className="card max-w-lg w-full p-6 sm:p-8 space-y-4">
           <div className="font-mono text-[11px] text-text-muted">{"// step_03: before the interview"}</div>
           <h2 className="text-xl font-bold text-text-primary">Where your words go</h2>
-          <Notice tone="warn" title="external AI processing">
-            Every message you type in the interview is sent to Google&apos;s Gemini API and the draft article
-            is generated there. Google receives the full text. This server is not confidential compute
-            and its operator can also read requests. Nothing about your Reclaim credential values is sent
-            to Google, only the provider name.
+          <Notice tone="warn" title={ai.external ? "external AI processing" : "AI processing on this server"}>
+            {ai.disclosure} Nothing about your Reclaim credential values is given to the model, only the
+            provider name and the names of the disclosed fields.
           </Notice>
           <ul className="text-xs text-text-secondary space-y-1.5 list-disc pl-5">
             <li>Do not include names, dates, or details that only you would know.</li>
@@ -200,7 +199,7 @@ export default function ChatInterface() {
             </button>
           </div>
           <p className="text-[11px] text-text-muted">
-            Prefer not to use an AI provider? The encrypted tip path is the alternative, but it is currently blocked on Sepolia. See the submit overview.
+            Prefer not to be interviewed by a model at all? The encrypted tip path is the alternative, but it is currently blocked on Sepolia. See the submit overview.
           </p>
         </div>
       </div>
@@ -276,7 +275,7 @@ export default function ChatInterface() {
           </button>
         </div>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] font-mono text-text-muted">shift+enter for a new line. sent to Google Gemini.</span>
+          <span className="text-[10px] font-mono text-text-muted">shift+enter for a new line. processed by {ai.label}.</span>
           {!canDraft && messages.length > 0 && (
             <span className="text-[10px] font-mono text-text-muted">
               {MIN_MESSAGES_TO_DRAFT - messages.length} more before drafting

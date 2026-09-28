@@ -17,7 +17,8 @@
     "benchmark:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/benchmark-articles.mts",
     "readback:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/readback-verify.mts",
     "check:dashes": "node scripts/check-dashes.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:capability": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/issue-dev-capability.mts"
   },
   "dependencies": {
     "@reclaimprotocol/js-sdk": "^4.12.0",

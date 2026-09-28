@@ -8,7 +8,7 @@
 | Article URL | `/article/<cid>` | `/article/<articleId>` where the id is the 31-byte SHA-256 digest of the approved text. Legacy CIDs still resolve (see below). |
 | Reclaim | Browser created the request with `NEXT_PUBLIC_RECLAIM_APP_SECRET`; `/api/verify` extracted parameters without `verifyProof` | Server creates and signs the request (`/api/verify/start`), binds a challenge, browser only runs the flow, `/api/verify` calls `verifyProof`, checks provider and context, consumes the one-use record, issues an opaque token plus recovery code |
 | Sessions | HMAC-signed self-contained token with `SESSION_SECRET || "dev-secret"` fallback | Random token, HMAC hash at rest in a file store, 2 hour expiry, single publish, 30 AI calls, recovery codes, no fallback secret (server throws if secrets are shorter than 32 chars) |
-| Gemini | Full credential parameters could be included after a regex filter; confidence score in output | Only provider name and field names are sent; no confidence score; JSON output mode |
+| AI | Gemini only; full credential parameters could be included after a regex filter; confidence score in output | Provider facade (`src/lib/ai.ts`). Default is a local open model through Ollama, Gemini is opt-in. Only provider name and field names are sent; no confidence score; JSON output mode. Every disclosure in the UI reads the active backend. |
 | TEE | `tee: true` when an env var was set; EigenCompute deploy workflow | `tee: false` always; workflow replaced by CI; Dockerfile has no build-time secrets |
 | Bond | none | 1 STRK Sepolia bond designed, explicitly blocked, receipts refused |
 | Tips | none | Encrypted tip design and helper contract, explicitly blocked |
@@ -23,7 +23,7 @@ If you want legacy articles in the Sepolia feed, republish each one through the 
 
 Removed: `NEXT_PUBLIC_RECLAIM_APP_ID`, `NEXT_PUBLIC_RECLAIM_APP_SECRET`, `NEXT_PUBLIC_RECLAIM_PROVIDER_ID`, `PINATA_API_KEY`, `PINATA_SECRET_KEY`, `NEXT_PUBLIC_PINATA_GATEWAY`, `EIGENCOMPUTE_ATTESTATION_URL`, `NEXT_PUBLIC_APP_URL`.
 
-Added: see `.env.example`. Server-only: `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID`, `STARKNET_SEPOLIA_RPC_URL`, `STARKNET_PUBLISHER_ADDRESS`, `STARKNET_PUBLISHER_PRIVATE_KEY`, `GEMINI_API_KEY`, `SESSION_SECRET`, `RATE_LIMIT_SECRET`, `SESSION_STORE_PATH`, `ALLOW_DEV_WITHOUT_PRIVATE_BOND`, `LEGACY_IPFS_GATEWAY`. Public: `NEXT_PUBLIC_STARKNET_NETWORK`, `NEXT_PUBLIC_STARKNET_CHAIN_ID`, `NEXT_PUBLIC_STARKNET_EXPLORER`, `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS`, `NEXT_PUBLIC_STRK20_POOL_ADDRESS`, `NEXT_PUBLIC_TIP_INBOX_ADDRESS`, `NEXT_PUBLIC_EDITORIAL_ENCRYPTION_PUBLIC_JWK`, `NEXT_PUBLIC_EDITORIAL_RECIPIENT_TAG`.
+Added: see `.env.example`. AI: `AI_PROVIDER`, `OLLAMA_BASE_URL` (use `http://host.docker.internal:11434` from Docker), `OLLAMA_MODEL`. Server-only: `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID`, `STARKNET_SEPOLIA_RPC_URL`, `STARKNET_PUBLISHER_ADDRESS`, `STARKNET_PUBLISHER_PRIVATE_KEY`, `GEMINI_API_KEY`, `SESSION_SECRET`, `RATE_LIMIT_SECRET`, `SESSION_STORE_PATH`, `ALLOW_DEV_WITHOUT_PRIVATE_BOND`, `LEGACY_IPFS_GATEWAY`. Public: `NEXT_PUBLIC_STARKNET_NETWORK`, `NEXT_PUBLIC_STARKNET_CHAIN_ID`, `NEXT_PUBLIC_STARKNET_EXPLORER`, `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS`, `NEXT_PUBLIC_STRK20_POOL_ADDRESS`, `NEXT_PUBLIC_TIP_INBOX_ADDRESS`, `NEXT_PUBLIC_EDITORIAL_ENCRYPTION_PUBLIC_JWK`, `NEXT_PUBLIC_EDITORIAL_RECIPIENT_TAG`.
 
 ## Required before any deployment
 

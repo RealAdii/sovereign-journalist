@@ -41,12 +41,15 @@ test("a wrong recovery code is rejected by the real route", async ({ page }) => 
 
 test("submit overview states the limits and the blocked paths; capabilities and attestation are honest", async ({ page, request }) => {
   await page.goto("/submit");
-  await expect(page.getByText("Google receives the interview.")).toBeVisible();
+  await expect(page.getByText("The interview stays on this server.")).toBeVisible();
   await expect(page.getByText("The article is public forever.")).toBeVisible();
   await expect(page.getByText("Bond: 1 STRK on Sepolia, refundable.")).toBeVisible();
   const caps = await (await request.get("/api/capabilities")).json();
   expect(caps.network).toBe("SN_SEPOLIA");
   expect(caps.encryptedTips.enabled).toBe(false);
+  expect(caps.aiInterview.provider).toBe("ollama");
+  expect(caps.aiInterview.external).toBe(false);
+  expect(caps.aiInterview.enabled).toBe(false); // unreachable dummy URL in e2e
   expect(caps.confidentialCompute.enabled).toBe(false);
   const att = await (await request.get("/api/attestation")).json();
   expect(att.tee).toBe(false);

@@ -1,5 +1,5 @@
 import { RpcProvider } from "starknet";
-import { geminiConfigured, GEMINI_MODEL } from "./gemini";
+import { aiInfo, aiReachable } from "./ai";
 import { publisherConfigured, registryConfigured } from "./onchain";
 import type { CapabilitiesReport } from "./types";
 
@@ -37,7 +37,7 @@ export async function poolStatus() {
 }
 
 export async function capabilitiesReport(): Promise<CapabilitiesReport> {
-  const pool = await poolStatus();
+  const [pool, ai, reachable] = await Promise.all([poolStatus(), Promise.resolve(aiInfo()), aiReachable()]);
   const tipInboxConfigured = Boolean(process.env.NEXT_PUBLIC_TIP_INBOX_ADDRESS);
   return {
     network: "SN_SEPOLIA",
@@ -50,13 +50,17 @@ export async function capabilitiesReport(): Promise<CapabilitiesReport> {
         : "Set STARKNET_SEPOLIA_RPC_URL, NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS, STARKNET_PUBLISHER_ADDRESS and STARKNET_PUBLISHER_PRIVATE_KEY.",
     },
     aiInterview: {
-      configured: geminiConfigured(),
-      enabled: geminiConfigured(),
-      provider: "google-gemini",
-      model: GEMINI_MODEL,
-      reason: geminiConfigured()
-        ? "Interview messages and the draft article are sent to Google's Gemini API. Google receives the full text. This server does not hide it from Google."
-        : "GEMINI_API_KEY is not set. The interview is unavailable. The encrypted tip path is the only alternative and it is also blocked.",
+      configured: ai.provider !== "none",
+      enabled: reachable,
+      provider: ai.provider,
+      model: ai.model,
+      external: ai.external,
+      reason:
+        ai.provider === "none"
+          ? `${ai.disclosure} The interview is unavailable. The encrypted tip path is the only alternative and it is also blocked.`
+          : reachable
+            ? ai.disclosure
+            : `${ai.disclosure} The backend is configured but not reachable right now (model not pulled or server down).`,
     },
     anonymousBond: {
       configured: false,
@@ -82,7 +86,7 @@ export async function capabilitiesReport(): Promise<CapabilitiesReport> {
       configured: false,
       enabled: false,
       reason:
-        "No hardware attestation is verified in this build. The operator of this server can read interview text, and Google receives it. Do not treat this deployment as confidential compute.",
+        `No hardware attestation is verified in this build. The operator of this server can read interview text${ai.external ? ", and " + ai.label + " receives it" : ""}. Do not treat this deployment as confidential compute.`,
     },
   };
 }

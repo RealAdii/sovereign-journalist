@@ -100,6 +100,15 @@ Decision: the server refuses every bond receipt (`POST /api/bond` returns 503) a
 
 Decision: `POST /api/tips` always returns 503 and stores nothing. The tip page has no form.
 
+## AI backend
+
+| Backend | Selection | Where the text goes | Status |
+| --- | --- | --- | --- |
+| Ollama, model `qwen2.5:7b` (Apache-2.0 weights, 4.7 GB q4) | default when `OLLAMA_BASE_URL` is set, or `AI_PROVIDER=ollama` | stays on the server that runs Ollama | installed on the dev machine on 2026-09-28 (`brew install ollama`, Ollama from Homebrew, Apple M-series, 24 GB RAM) |
+| Google Gemini `gemini-2.5-flash` | `AI_PROVIDER=gemini` plus `GEMINI_API_KEY` | Google | kept as an optional backend; no key available here |
+
+Wire format used for Ollama: `POST /api/chat` with `stream: true` returns NDJSON lines `{ message: { role, content }, done }`; article drafting uses `stream: false, format: "json"`. Context window is set to 16384 tokens and replies are capped (700 tokens interview, 4096 article) so a 60-message transcript still fits. Docker deployments reach a host Ollama at `http://host.docker.internal:11434`.
+
 ## Confidential compute: not available
 
 No hardware attestation is verified. `/api/attestation` returns `tee: false` and describes the real data flow. EigenCompute was removed. dstack (https://github.com/Dstack-TEE/dstack) is an open source framework but still requires TDX hardware hosting, which is not free; Intel Trust Authority is an attestation verifier, not compute. No zero-cost hardware TEE was identified, so the Sepolia milestone ships with disclosure instead.

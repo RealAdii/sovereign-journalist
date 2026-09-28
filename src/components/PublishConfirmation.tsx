@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import type { PublishResult } from "@/lib/types";
+import type { AiInfo } from "@/lib/ai";
 
-export default function PublishConfirmation({ result }: { result: PublishResult }) {
+export default function PublishConfirmation({ result, ai }: { result: PublishResult; ai: AiInfo }) {
   return (
     <div className="max-w-lg mx-auto text-center animate-fade-in">
       <div className="card p-6 sm:p-8">
@@ -33,7 +34,7 @@ export default function PublishConfirmation({ result }: { result: PublishResult 
         </dl>
         <div className="bg-neon-green/5 border border-neon-green/20 rounded p-3 mb-6 text-left text-xs text-text-secondary">
           Your session token was discarded from this browser. The interview transcript was not stored
-          on the server and is not on Starknet. Google received it during the interview.
+          on the server and is not on Starknet.{ai.external ? ` ${ai.label} received it during the interview.` : " It was processed only on this server."}
         </div>
         <Link href={`/article/${result.articleId}`} className="btn-primary inline-block">
           Open the article

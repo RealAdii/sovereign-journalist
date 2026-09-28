@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordAiRequest, requireBondedCapability } from "@/lib/session";
-import { generateArticle, geminiConfigured } from "@/lib/gemini";
+import { aiConfigured, generateArticle } from "@/lib/ai";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
 import { validMessages } from "@/lib/messages";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!validMessages(body.messages) || body.messages.length < 4) {
     return jsonError("The interview is too short to draft an article", 400);
   }
-  if (!geminiConfigured()) return jsonError("The AI interview is not configured", 503);
+  if (!aiConfigured()) return jsonError("The AI interview is not configured", 503);
   if (!recordAiRequest(body.token!)) {
     return jsonError("This session has reached its AI request limit", 429);
   }

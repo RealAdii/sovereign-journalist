@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseArticleResponse } from "@/lib/gemini";
+import { parseArticleResponse } from "@/lib/prompts";
 
 describe("parseArticleResponse", () => {
   it("strips fences, ignores extra fields such as confidence scores, and fixes statuses", () => {

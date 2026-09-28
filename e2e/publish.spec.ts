@@ -7,9 +7,10 @@ test.describe("publish flow (mocked backend, dev bypass)", () => {
     await mockInterview(page);
     await page.goto("/submit/interview");
 
-    // The Google disclosure must appear before any message can be typed.
+    // The AI disclosure must appear before any message can be typed.
     await expect(page.getByText("Where your words go")).toBeVisible();
-    await expect(page.getByText(/sent to Google/)).toBeVisible();
+    await expect(page.getByText(/processed by the open model qwen2.5:7b running on this server/)).toBeVisible();
+    await expect(page.getByText(/not confidential compute/)).toBeVisible();
     await expect(page.getByLabel("Your message")).toHaveCount(0);
 
     await runInterview(page, 3);

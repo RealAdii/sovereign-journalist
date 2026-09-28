@@ -17,7 +17,8 @@ Scope: the Next.js server, the Starknet Sepolia article registry, the Reclaim ve
 | Source's browser | everything the source types, session token, recovery code | server secrets | what is submitted |
 | This server and its operator | IP address, timing, Reclaim proof and disclosed parameter values (in memory and in the session store for up to 2 hours), interview text in transit, approved article | nothing is hidden from the operator in this build | publishing key, rate limits |
 | Reclaim attestors and app backend | that a session for this app id happened, provider id, the proof; the source's IP during proof generation | interview text | whether a proof is issued |
-| Google (Gemini API) | every interview message, the provider name, the draft article | credential parameter values, session tokens, IP of the source (requests come from the server) | model output |
+| Local open model (Ollama on this server, default) | the same text the server sees; it never leaves the machine | nothing beyond what the operator already sees | model output |
+| Google (Gemini API, only if `AI_PROVIDER=gemini`) | every interview message, the provider name, the draft article | credential parameter values, session tokens, IP of the source (requests come from the server) | model output |
 | Starknet Sepolia (public) | full article text, article id, approved digest, publish timestamp, publisher account address, fee paid | interview, credential, source IP, source wallet (never involved) | nothing |
 | Any reader | the same as Starknet plus this site's pages | | |
 
@@ -38,8 +39,8 @@ Mitigation: server-initiated request with a fresh `verificationId` and random ch
 ### T5. Repeated AI usage without a bond
 Mitigation: per-session cap of 30 AI calls, per-IP rate limits on every route, publish limited to one per session. Residual: without a working bond, an attacker with many Reclaim-capable accounts can still run 30 calls per verification. The bond remains a requirement for production.
 
-### T6. Interview text exposed to Google
-Not mitigated technically. Mitigation is disclosure: a gate screen before the interview says Google receives everything, lets the source decline, and links to the (currently blocked) encrypted path. The prompt instructs the model not to elicit identifying details, which is advisory only.
+### T6. Interview text exposed to an AI provider
+Default backend is an open model served by Ollama on the operator's machine, so no third party receives the text; the exposure collapses into T7 (operator access). With `AI_PROVIDER=gemini` the text goes to Google and the gate screen, capabilities report, attestation endpoint, and confirmation screen all say so. In both cases the source can decline and the prompt instructs the model not to elicit identifying details, which is advisory only. The local model is not a confidentiality guarantee: memory, swap, and Ollama logs on the server are readable by the operator.
 
 ### T7. Operator or host reads interview text
 Not mitigated. No attestation, no TEE. The attestation endpoint says so. Server logs contain no request bodies; route handlers never log source text, credential values, tokens, or proofs.
@@ -65,6 +66,6 @@ Mitigation: no confidence score; the article page labels "credential proven", "a
 ## Explicit non-claims
 
 - This build does not claim that the operator cannot read source data.
-- This build does not claim that Google cannot read interview data.
+- This build does not claim that an AI provider cannot read interview data when an external provider is selected, and it does not claim confidentiality for the local model beyond "no third party receives it".
 - This build does not claim anonymity for any bond or tip path, because none is live.
 - A Reclaim proof does not prove that any allegation is true.

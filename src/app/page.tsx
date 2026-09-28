@@ -2,6 +2,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import ArticleCard from "@/components/ArticleCard";
 import { explorerUrl, listArticles, registryConfigured } from "@/lib/onchain";
+import { aiInfo } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ async function getArticles() {
 export default async function HomePage() {
   const { articles, failed } = await getArticles();
   const registry = process.env.NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS;
+  const ai = aiInfo();
 
   return (
     <>
@@ -71,7 +73,7 @@ export default async function HomePage() {
           credentials by{" "}
           <a href="https://reclaimprotocol.org" target="_blank" rel="noopener noreferrer" className="text-neon-dim hover:text-neon-green no-underline">reclaim protocol</a>
           {" "}&middot; stored on <span className="text-neon-cyan">Starknet Sepolia</span> &middot; interviews processed by{" "}
-          <span className="text-neon-cyan">Google Gemini</span> &middot; <Link href="/api/capabilities" className="text-neon-dim">capabilities</Link>
+          <span className="text-neon-cyan">{ai.label}</span> &middot; <Link href="/api/capabilities" className="text-neon-dim">capabilities</Link>
         </footer>
       </main>
     </>
