@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       body.verificationId,
       record.challenge,
       record.reclaimSessionId,
+      record.providerVersion,
     );
     const issued = issueCapability(credential);
     const response: IssuedCapability = {

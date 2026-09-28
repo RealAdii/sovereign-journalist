@@ -14,6 +14,7 @@ vi.mock("@reclaimprotocol/js-sdk", () => ({
         // Mirrors the real SDK: the serialized request carries the context but never the secret.
         toJsonString: () => JSON.stringify({ applicationId: "0xapp", signature: "0xsig", context }),
         getSessionId: () => "sess",
+        getProviderVersion: () => ({ providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] }),
       };
     }),
   },
@@ -61,6 +62,7 @@ function post(path: string, body: unknown, ip = "1.1.1.1") {
 }
 
 function proofFor(verificationId: string, sessionId = "sess", challenge = "") {
+  // The mocked verifyProof reads the binding it should report from the proof context.
   return {
     identifier: "0x1",
     signatures: ["0xsig"],
@@ -70,12 +72,18 @@ function proofFor(verificationId: string, sessionId = "sess", challenge = "") {
       parameters: "{}",
       owner: "0xowner",
       timestampS: 1,
-      context: JSON.stringify({ contextAddress: verificationId, contextMessage: challenge, sessionId, providerHash: "0xhash", extractedParameters: { role: "staff" } }),
+      context: JSON.stringify({ contextAddress: verificationId, contextMessage: challenge, reclaimSessionId: sessionId, providerHash: "0xhash", extractedParameters: { role: "staff" } }),
       identifier: "0x1",
       epoch: 1,
     },
   };
 }
+
+function verifiedFrom(proof: ReturnType<typeof proofFor>) {
+  const { extractedParameters, ...context } = JSON.parse(proof.claimData.context);
+  return { isVerified: true, error: undefined, publicData: [], data: [{ context, extractedParameters }] };
+}
+const REJECTED = { isVerified: false, error: new Error("Identifier mismatch"), data: [], publicData: [] };
 
 async function verifiedSession(ip = "1.1.1.1") {
   const start = await startVerify(post("/api/verify/start", {}, ip));
@@ -88,7 +96,7 @@ beforeEach(() => {
   resetStoreForTests();
   verifyProof.mockReset();
   sessionLookup.mockReset();
-  sessionLookup.mockReturnValue({ session: { appId: "0xapp", httpProviderId: ["provider-123"], proofs: [{ identifier: "0x1" }], statusV2: "PROOF_SUBMITTED" } });
+  sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", providerVersionString: "4.0.0", httpProviderId: ["provider-123"], proofs: [{ identifier: "0x1" }], statusV2: "PROOF_SUBMITTED" } });
   publishArticle.mockReset();
   estimatePublication.mockReset();
   delete process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND;
@@ -114,7 +122,7 @@ describe("verification routes", () => {
   });
 
   it("rejects a proof for an unknown verification id and a replay of a used one", async () => {
-    verifyProof.mockResolvedValue(true);
+    verifyProof.mockImplementation(async (p: ReturnType<typeof proofFor>) => verifiedFrom(p));
     const unknown = await completeVerify(post("/api/verify", { verificationId: "nope", proofs: [proofFor("nope")] }));
     expect(unknown.status).toBe(410);
 
@@ -127,7 +135,7 @@ describe("verification routes", () => {
   });
 
   it("issues a one-use capability with a recovery code for a valid bound proof", async () => {
-    verifyProof.mockResolvedValue(true);
+    verifyProof.mockImplementation(async (p: ReturnType<typeof proofFor>) => verifiedFrom(p));
     const { verificationId, challenge } = await verifiedSession();
     const res = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId, "sess", challenge)] }));
     expect(res.status).toBe(200);
@@ -150,7 +158,7 @@ describe("verification routes", () => {
   });
 
   it("rejects a forged proof and consumes the record", async () => {
-    verifyProof.mockResolvedValue(false);
+    verifyProof.mockResolvedValue(REJECTED);
     const { verificationId } = await verifiedSession();
     const res = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId)] }));
     expect(res.status).toBe(401);
@@ -159,8 +167,8 @@ describe("verification routes", () => {
   });
 
   it("rejects a valid proof that the initiated session did not produce", async () => {
-    verifyProof.mockResolvedValue(true);
-    sessionLookup.mockReturnValue({ session: { appId: "0xapp", httpProviderId: ["provider-123"], proofs: [{ identifier: "0xforeign" }] } });
+    verifyProof.mockImplementation(async (p: ReturnType<typeof proofFor>) => verifiedFrom(p));
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [{ identifier: "0xforeign" }] } });
     const { verificationId, challenge } = await verifiedSession();
     const res = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId, "sess", challenge)] }));
     expect(res.status).toBe(401);

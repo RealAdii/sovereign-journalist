@@ -11,7 +11,7 @@ Checked on 2026-09-28 from a machine with no project secrets. Every result below
 | starknet.js | 10.4.0 (exact) | https://github.com/starknet-io/starknet.js, first release with `WalletAccountV6`, `strk20InvokeTransaction`, `STRK20_ACTION` |
 | @starknet-io/types-js | 0.10.3 | Wallet API 0.10.3 types |
 | @starknet-io/get-starknet-discovery, -wallet-standard | 6.0.3 | tested pair for starknet.js 10.4.0 |
-| @reclaimprotocol/js-sdk | 4.12.0 | https://docs.reclaimprotocol.org/manual/js-sdk/usage |
+| @reclaimprotocol/js-sdk | 5.8.2 (exact, released 2026-07-13) | https://docs.reclaimprotocol.org/manual/js-sdk/usage |
 | Scarb | 2.14.0 | required by Starknet Foundry 0.57.0 (2.10.1 was rejected) |
 | Starknet Foundry (snforge) | 0.57.0 | |
 | Cairo edition | 2024_07 | contracts/Scarb.toml |
@@ -113,15 +113,16 @@ Wire format used for Ollama: `POST /api/chat` with `stream: true` returns NDJSON
 
 No hardware attestation is verified. `/api/attestation` returns `tee: false` and describes the real data flow. EigenCompute was removed. dstack (https://github.com/Dstack-TEE/dstack) is an open source framework but still requires TDX hardware hosting, which is not free; Intel Trust Authority is an attestation verifier, not compute. No zero-cost hardware TEE was identified, so the Sepolia milestone ships with disclosure instead.
 
-## Reclaim
+## Reclaim (SDK 5.8.2, current docs)
 
-Field names were checked against the installed SDK source (`node_modules/@reclaimprotocol/js-sdk/dist/index.js`, 4.12.0), not against documentation from memory:
+The first pass used js-sdk 4.12.0 with a custom iframe around the share page URL, which the user flagged as the discontinued app-clip era flow. Rewritten on 2026-09-28 against the current docs (https://docs.reclaimprotocol.org/manual/js-sdk/usage) and the 5.8.2 type definitions:
 
-- `setContext(address, message)` stores `{ contextAddress, contextMessage }`; the attestor copies that into `proof.claimData.context` as a JSON string together with `extractedParameters` and `providerHash`. The server compares `contextAddress` to the `verificationId` and `contextMessage` to the challenge it generated.
-- `proof.claimData.provider` is the provider type (for example `"http"`), not the dashboard provider id. It is therefore not used for binding. Instead the server fetches `https://api.reclaimprotocol.org/api/sdk/session/<sessionId>` for the session it created and requires `session.appId == RECLAIM_APP_ID`, `RECLAIM_PROVIDER_ID` in `session.httpProviderId`, and the submitted proof's `identifier` in `session.proofs`. This is a live dependency on Reclaim's backend; if it is unreachable the verification fails closed.
-- Optional `RECLAIM_PROVIDER_HASH` pins the template hash found in the proof context.
-- `verifyProof(proof, false)` checks attestor signatures over the claim. AI witnesses are rejected. The installed SDK does not expose the newer docs' provider-version overload.
-- Live proof generation was not exercised: no Reclaim app credentials were available. The flow is unit tested with a mocked signature check and a stubbed session lookup, using fixtures in the SDK's field shapes.
+- Server: `ReclaimProofRequest.init(appId, secret, providerId, { acceptAiProviders: false })`, `setContext(verificationId, challenge)`, `getProviderVersion()` (stored with the verification record, resolved to `4.0.0` for the configured LinkedIn template), `toJsonString()` (carries the signature and context, never the secret; checked in `dist/index.js`).
+- Browser: `fromJsonString`, `startSession({ onSuccess, onError })`, then `triggerReclaimFlow({ target })`, which embeds Reclaim's portal (remote browser verification) inside the page, or uses the Reclaim browser extension on desktop when present. No app clip, QR code, or Reclaim mobile app is involved unless `verificationMode: "app"` is requested, which this app does not do.
+- Server verification: `verifyProof(proof, { providerId, providerVersion, allowedTags })` returns `{ isVerified, data }`. It checks attestor signatures and that the proof's request hashes match the exact provider template version used in the session, so a proof from a different or edited template is rejected. Trusted `data[0].context` (`contextAddress`, `contextMessage`, `reclaimSessionId`, `providerHash`) is compared to the stored request, and `data[0].extractedParameters` becomes the credential. Raw `claimData.context` is not parsed by this app.
+- Session binding: `GET https://api.reclaimprotocol.org/api/sdk/session/<id>` must show our `appId`, our `providerId`, and the proof identifier. Live dependency; fails closed.
+- Optional: `RECLAIM_PROVIDER_HASH` pins the template hash; `setAppCallbackUrl` (proofs posted straight to the backend) is documented as the production option but needs a public URL, so the local build keeps client delivery through `startSession`.
+- Verified live: `/api/verify/start` returns a request with `sdkVersion: js-5.8.2`, `resolvedProviderVersion: 4.0.0`, a signature, and the session id in the context. A full proof still needs a person to complete the LinkedIn login in the portal.
 
 ## What can be run today without secrets
 

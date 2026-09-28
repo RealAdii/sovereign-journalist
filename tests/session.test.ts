@@ -25,7 +25,7 @@ beforeEach(() => {
 describe("verification records", () => {
   it("are one-use", () => {
     const { verificationId, challenge } = createVerificationRecord();
-    saveVerificationRecord(verificationId, challenge, "sess");
+    saveVerificationRecord(verificationId, challenge, "sess", { providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] });
     expect(consumeVerificationRecord(verificationId)).toMatchObject({ challenge, reclaimSessionId: "sess" });
     expect(consumeVerificationRecord(verificationId)).toBeNull();
   });
@@ -33,7 +33,7 @@ describe("verification records", () => {
   it("expire", () => {
     vi.useFakeTimers();
     const { verificationId, challenge } = createVerificationRecord();
-    saveVerificationRecord(verificationId, challenge, "sess");
+    saveVerificationRecord(verificationId, challenge, "sess", { providerId: "provider-123", providerVersion: "4.0.0", allowedTags: [] });
     vi.advanceTimersByTime(11 * 60 * 1000);
     expect(consumeVerificationRecord(verificationId)).toBeNull();
     vi.useRealTimers();

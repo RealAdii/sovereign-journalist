@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
   }
   try {
     const { verificationId, challenge } = createVerificationRecord();
-    const { requestJson, reclaimSessionId } = await createReclaimRequest(verificationId, challenge);
-    saveVerificationRecord(verificationId, challenge, reclaimSessionId);
+    const { requestJson, reclaimSessionId, providerVersion } = await createReclaimRequest(verificationId, challenge);
+    saveVerificationRecord(verificationId, challenge, reclaimSessionId, providerVersion);
     return NextResponse.json({ verificationId, requestJson });
   } catch {
     return jsonError("Could not start a verification request", 500);

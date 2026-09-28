@@ -2,12 +2,14 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import type { VerifiedCredential } from "./types";
+import type { ProviderVersion } from "./reclaim";
 
 type VerificationRecord = {
   type: "verification";
   expiresAt: number;
   challenge: string;
   reclaimSessionId: string;
+  providerVersion: ProviderVersion;
 };
 
 type CapabilityRecord = {
@@ -126,12 +128,14 @@ export function saveVerificationRecord(
   verificationId: string,
   challenge: string,
   reclaimSessionId: string,
+  providerVersion: ProviderVersion,
 ) {
   put(`verify:${hash(verificationId, "verification")}`, {
     type: "verification",
     expiresAt: Date.now() + VERIFICATION_TTL_MS,
     challenge,
     reclaimSessionId,
+    providerVersion,
   });
 }
 
