@@ -1,0 +1,11 @@
+{
+  "network": "SN_SEPOLIA",
+  "rpc": "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/alch_0ujre1JbGsCApziIQJ2kd",
+  "classHash": "0xb78be67c801a4735dd175bf55c7cc9c64cc620f6e37f3d921bad124c1dfd44",
+  "declareTransaction": "0xa15203022d7f71f696cf1e695a910c5b8aee9b25fe6f342005649c1ac32d5f",
+  "address": "0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0",
+  "deployTransaction": "0x7ad9a50e742fd313acc03b94a19972526fed35f2c0d286dbb05d0e5c4795c7b",
+  "publisher": "0x070b9ebcc53df4db3b157a1b346c636f3547ed41553dcc58026126beb73d2764",
+  "deployedAt": "2026-09-28T13:27:02.334Z",
+  "elapsedMs": 65962
+}

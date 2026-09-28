@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-28 18:55 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-28 19:10 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -93,7 +93,16 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
 
-## Blocked on the user (17:15)
+## Live Sepolia milestone (19:10)
+
+- Registry deployed: `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0`, class `0xb78be67c801a4735dd175bf55c7cc9c64cc620f6e37f3d921bad124c1dfd44`, publisher = user's Ready wallet `0x070b9ebcc53df4db3b157a1b346c636f3547ed41553dcc58026126beb73d2764` (private key in `.env.local` only). Deployments record in `deployments/sepolia.json`.
+- Benchmark published 3 articles (614 B, 4158 B, 22187 B): actual fees 0.40, 1.64, 8.01 STRK; confirm 13 to 20 s; all read back byte for byte. `docs/benchmarks/sepolia-2026-09-28.json`.
+- Product body limit lowered to 16384 in `ARTICLE_LIMITS` (contract cap 24576 unchanged). `ArticleValidationError` rewritten without TS parameter properties because Node strip-only mode rejects them (this broke `benchmark:sepolia` until fixed).
+- Independent read-back and digest recomputation verified; raw curl through zan.top confirmed metadata. Feed and article pages render from Sepolia.
+- CI on PR #1 all green. User pushes; agent cannot.
+- Remaining: live Reclaim proof by a human, Gemini key, bond and tip stay blocked.
+
+## Blocked on the user (17:15, mostly resolved)
 
 - Branch pushed and PR opened by the user at 18:53: https://github.com/RealAdii/sovereign-journalist/pull/1 (token needed `gh auth refresh -s workflow` first because the branch adds a workflow file). CI running. The agent still cannot push; the user pushes follow-up commits.
 - `.env.local` now has the Alchemy Sepolia RPC (`starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/<key>`; the `v0_8` path errors). Mainnet URL from the same app must never be used.

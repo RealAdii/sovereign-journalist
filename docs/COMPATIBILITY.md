@@ -123,12 +123,16 @@ npm run check:sepolia
 NEXT_PUBLIC_STRK20_POOL_ADDRESS=0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91 npm run check:sepolia
 ```
 
+## Deployed registry
+
+`ArticleRegistry` is live on Sepolia at `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0` (class `0xb78be67c801a4735dd175bf55c7cc9c64cc620f6e37f3d921bad124c1dfd44`), owned and published by `0x070b9ebcc53df4db3b157a1b346c636f3547ed41553dcc58026126beb73d2764`. Measured fees and latency are in docs/TEST_REPORT.md; the body limit was set to 16384 bytes from them.
+
 ## What needs secrets
 
 | Step | Needs | Script |
 | --- | --- | --- |
-| Deploy registry | `STARKNET_SEPOLIA_RPC_URL`, funded `STARKNET_PUBLISHER_ADDRESS` and `STARKNET_PUBLISHER_PRIVATE_KEY` | `npm run deploy:sepolia` |
-| Fee and latency benchmark for short, typical, long articles | same, plus `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS` | `npm run benchmark:sepolia` |
+| Deploy registry (done 2026-09-28) | `STARKNET_SEPOLIA_RPC_URL`, funded `STARKNET_PUBLISHER_ADDRESS` and `STARKNET_PUBLISHER_PRIVATE_KEY` | `npm run deploy:sepolia` |
+| Fee and latency benchmark (done 2026-09-28) | same, plus `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS` | `npm run benchmark:sepolia` |
 | Independent read-back proof | RPC and registry address only | `npm run readback:sepolia -- <articleId> [expected.json]` |
 | Live Reclaim proof | `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID` | `npm run dev`, open /submit/verify |
 | Interview | `GEMINI_API_KEY` | `npm run dev` |

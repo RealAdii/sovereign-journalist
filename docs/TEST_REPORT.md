@@ -1,6 +1,6 @@
 # Test report
 
-Generated 2026-09-28 on macOS (Darwin 25.3.0, aarch64), Node 22.14.0, Scarb 2.14.0, snforge 0.57.0. No project secrets were available, so everything below is local or read-only against public Sepolia RPC. Live Sepolia publication, fee benchmarks, live Reclaim proofs, Gemini calls, browser end-to-end tests, and the two-wallet linkage analysis were not run and are listed under "Not run".
+Generated 2026-09-28 on macOS (Darwin 25.3.0, aarch64), Node 22.14.0, Scarb 2.14.0, snforge 0.57.0. Updated the same day after the registry was deployed to Sepolia and benchmarked with a funded publisher. Still not run: live Reclaim proof end to end, Gemini interview, and the two-wallet bond linkage analysis (blocked by design).
 
 ## TypeScript unit and route tests (`npm test`)
 
@@ -106,6 +106,49 @@ scarb build         -> ok
 }
 ```
 
+## Live Sepolia deployment (2026-09-28, 13:26 UTC)
+
+| Item | Value |
+| --- | --- |
+| Network | SN_SEPOLIA via Alchemy (`starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/...`), spec 0.10.3-rc.0 |
+| ArticleRegistry address | `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0` |
+| Class hash | `0xb78be67c801a4735dd175bf55c7cc9c64cc620f6e37f3d921bad124c1dfd44` |
+| Declare transaction | `0xa15203022d7f71f696cf1e695a910c5b8aee9b25fe6f342005649c1ac32d5f` |
+| Deploy transaction | `0x7ad9a50e742fd313acc03b94a19972526fed35f2c0d286dbb05d0e5c4795c7b` |
+| Publisher (owner and publisher) | `0x070b9ebcc53df4db3b157a1b346c636f3547ed41553dcc58026126beb73d2764` (the operator's Ready wallet; not a source wallet) |
+| Deploy wall time | 66 s including declare and deploy confirmation |
+| Explorer | https://sepolia.starkscan.co/contract/0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0 (Starkscan answered 200; Voyager returns 403 to scripted requests but https://sepolia.voyager.online/contract/0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0 works in a browser) |
+| `check:sepolia` | registry deployed, `registryPublisherMatches: true`, publisher balance 107.3 STRK before the benchmark |
+
+## Fee and latency benchmark (`npm run benchmark:sepolia`, `docs/benchmarks/sepolia-2026-09-28.json`)
+
+| Article | UTF-8 bytes (title + subtitle + body) | Calldata felts | Estimated fee | Actual fee | Confirm (ACCEPTED_ON_L2) | Read back | Byte-for-byte match |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| short | 614 | 29 | 0.877 STRK | 0.395 STRK | 13.1 s | 1.3 s | yes |
+| typical | 4158 | 143 | 3.666 STRK | 1.640 STRK | 15.5 s | 1.1 s | yes |
+| long | 22187 | 725 | 18.004 STRK | 8.005 STRK | 19.8 s | 2.1 s | yes |
+
+Transactions: short `0x24c263fe6ae1ce5dc70638666f237add225dbe395715bf4b0d880af0e9cb0e3`, typical `0x2021180a3b80c11903453caad2b545c8d782093857bcf6ccb19920022930033`, long `0x6d0bbad278c7b92378f97451c3e786fd4d38b8ed9b5001c96ed44adc79df43a`. Article ids: `0xaa9f9fb4e09ba4a12629b8dc0dead6b4b9df3b118e0568d764c49f37792461`, `0x8c1b7817ccc61c6a7e2626bb77407372344ce4f44de468875e23b0ca33590a`, `0x69e3465bb68a063c603f8ab660caf74402a7c985450536535c113368ee5d0d`.
+
+Actual cost is close to linear at about 0.36 STRK per KB of article text on Sepolia (the estimate overshoots by roughly 2.2x, which is starknet.js's resource-bounds overhead). starknet.js logged "Insufficient transaction data" warnings while estimating a tip from recent blocks; it still submitted with the recommended tip and every transaction was accepted.
+
+**Product limit set from these numbers:** body limit 16384 bytes in `ARTICLE_LIMITS` (the contract's hard cap stays 24576). At the measured rate a maximal article costs about 6 STRK and confirms in about 20 s. Title 180 and subtitle 420 are unchanged.
+
+## Independent read-back proof (`npm run readback:sepolia`, fresh process, RPC only)
+
+- The feed rebuilt from the contract alone lists the three benchmark articles, newest first.
+- The long article read back with 22058 body bytes, 36 title bytes, 93 subtitle bytes; `approved_digest` equals the article id.
+- The SHA-256 digest recomputed in Python over the decoded chain text (canonical JSON, first 31 bytes) equals the article id, so the stored text is exactly what was approved.
+- A raw `starknet_call` to `get_article_meta` through a second, unrelated public RPC (zan.top) with curl returned `exists=1`, the digest, timestamp `0x6aba6b7b`, and byte lengths `0x24`, `0x5d`, `0x562a` with `0x2c8` = 712 body chunks. No server, database, or IPFS was involved.
+
+## Rendered pages against the live registry
+
+With the dev server pointed at the deployed registry, `/` lists the three articles, `/article/0x69e3...` renders three `<h2>` headings from the Markdown body with no leaked syntax, shows the registry address in the provenance panel, and an unknown id returns 404 (dev server).
+
+## CI on PR #1 (https://github.com/RealAdii/sovereign-journalist/pull/1)
+
+All jobs passed on both the push and the pull request runs: Typecheck, lint, test, build (1m21s); Cairo build and tests; Browser flow tests (mocked backend) (1m16s); Sepolia read-only compatibility check (24s).
+
 ## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
 
 These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.
@@ -131,11 +174,7 @@ Observed discrepancy: for an unknown article id, `next start` returns HTTP 404 w
 
 | Item | Blocker | How to run once unblocked |
 | --- | --- | --- |
-| Registry deployment (class hash, address, tx) | funded publisher account + RPC key | `npm run build:contracts && npm run deploy:sepolia`. starknet.js 10.4 fills the v3 `tip` from `getEstimateTip().recommendedTip` when it is omitted (checked in `dist/index.js`), so no tip is passed explicitly; if a provider rejects that, pass `{ tip: 0n }` in `execute`. |
-| Fee and latency for short, typical, long articles | same + deployed registry | `npm run benchmark:sepolia`, results land in `docs/benchmarks/` |
-| Byte-for-byte read-back from a fresh process without the server | deployed registry with at least one article | `npm run readback:sepolia -- <articleId> expected.json` |
-| Product article size limit from real measurements | benchmark results | adjust `ARTICLE_LIMITS` and the Cairo constants together |
-| Live Reclaim proof, replay attempt against a live attestor | Reclaim app id, secret, provider id | `npm run dev`, /submit/verify, then resubmit the same proof and expect 410 |
+| Live Reclaim proof, replay attempt against a live attestor | a person completing the LinkedIn flow in the Reclaim app | credentials are configured and `/api/verify/start` returns a signed request; `npm run dev`, /submit/verify, then resubmit the same proof and expect 410 |
 | Interview and drafting | `GEMINI_API_KEY` | `npm run dev` with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` |
 | Browser end-to-end against live Reclaim, Gemini, and Sepolia | all of the above | run `npm run test:e2e` after replacing the `page.route` mocks with real credentials; the mocked version passes today |
 | Two-wallet bond linkage analysis | no private bond path exists | blocked by design, see docs/COMPATIBILITY.md |

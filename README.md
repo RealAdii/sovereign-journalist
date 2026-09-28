@@ -2,7 +2,7 @@
 
 A source proves a credential with [Reclaim Protocol](https://reclaimprotocol.org), is interviewed by an AI, edits and approves an article, and the **entire approved article** is written into a Cairo contract on **Starknet Sepolia**. Readers, and anyone with an RPC endpoint, read it back from the chain. Nothing about the source, the interview, or the credential goes onchain.
 
-This is a testnet build. Mainnet is not configured and is refused by the code. Read [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what is proven, what is blocked, and why.
+This is a testnet build. The registry is deployed on Sepolia at `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0` (see docs/TEST_REPORT.md for class hash, transactions, and measured fees). Mainnet is not configured and is refused by the code. Read [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what is proven, what is blocked, and why.
 
 ## Honest summary of the privacy boundary
 
@@ -82,7 +82,7 @@ These need a funded publisher account and were not run for this change (no secre
 
 ## Contract
 
-`ArticleRegistry` stores full UTF-8 title (up to 180 bytes), subtitle (up to 420), and body (up to 24576) as 31-byte felt chunks in persistent storage, with byte lengths, chunk counts, publish timestamp, version, and the approved digest. The article id is the digest of the approved text, so a changed preview cannot be published under an approved id. Only the configured publisher can write; duplicates are rejected; reads are paginated (128 chunks per call). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`ArticleRegistry` stores full UTF-8 title (up to 180 bytes), subtitle (up to 420), and body (contract cap 24576, product limit 16384 set from the Sepolia benchmark: about 0.36 STRK per KB and 20 s to confirm) as 31-byte felt chunks in persistent storage, with byte lengths, chunk counts, publish timestamp, version, and the approved digest. The article id is the digest of the approved text, so a changed preview cannot be published under an approved id. Only the configured publisher can write; duplicates are rejected; reads are paginated (128 chunks per call). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Documentation
 

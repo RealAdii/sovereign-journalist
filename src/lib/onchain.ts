@@ -7,9 +7,12 @@ import type {
   PublishEstimate,
 } from "./types";
 
-// Byte limits mirror MAX_TITLE_BYTES, MAX_SUBTITLE_BYTES and MAX_BODY_BYTES in
-// contracts/article_registry/src/lib.cairo. Change both together.
-export const ARTICLE_LIMITS = { title: 180, subtitle: 420, body: 24576 } as const;
+// Product limits. Title and subtitle mirror the Cairo constants. The body limit
+// is below the contract's 24576-byte hard cap: the 2026-09-28 Sepolia benchmark
+// measured about 0.36 STRK per KB and 20 s to confirm a 22 KB article, so 16 KB
+// keeps a publication under roughly 6 STRK and 20 s (docs/benchmarks/).
+export const ARTICLE_LIMITS = { title: 180, subtitle: 420, body: 16384 } as const;
+export const CONTRACT_BODY_CAP = 24576;
 export const CHUNK_BYTES = 31;
 export const PAGE_CHUNKS = 128;
 const SECTION = { title: 0, subtitle: 1, body: 2 } as const;
@@ -62,15 +65,18 @@ export function byteLength(value: string) {
   return encoder.encode(value.normalize("NFC")).length;
 }
 
+// No parameter properties: Node's strip-only TypeScript mode (used by scripts/) rejects them.
 export class ArticleValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly field: "title" | "subtitle" | "body",
-    public readonly size: number,
-    public readonly max: number,
-  ) {
+  readonly field: "title" | "subtitle" | "body";
+  readonly size: number;
+  readonly max: number;
+
+  constructor(message: string, field: "title" | "subtitle" | "body", size: number, max: number) {
     super(message);
     this.name = "ArticleValidationError";
+    this.field = field;
+    this.size = size;
+    this.max = max;
   }
 }
 

@@ -1,0 +1,63 @@
+{
+  "rpc": "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/alch_0ujre1JbGsCApziIQJ2kd",
+  "registry": "0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0",
+  "results": [
+    {
+      "name": "short",
+      "bytes": {
+        "title": 37,
+        "subtitle": 93,
+        "body": 484
+      },
+      "totalBytes": 614,
+      "calldataFelts": 29,
+      "estimatedFeeFri": "876614205371201640",
+      "estimatedFeeStrk": "0.87661420537120164",
+      "actualFeeFri": "395124743314844480",
+      "actualFeeStrk": "0.39512474331484448",
+      "confirmationMs": 13121,
+      "readBackMs": 1314,
+      "readBackMatched": true,
+      "articleId": "0xaa9f9fb4e09ba4a12629b8dc0dead6b4b9df3b118e0568d764c49f37792461",
+      "transactionHash": "0x24c263fe6ae1ce5dc70638666f237add225dbe395715bf4b0d880af0e9cb0e3"
+    },
+    {
+      "name": "typical",
+      "bytes": {
+        "title": 39,
+        "subtitle": 93,
+        "body": 4026
+      },
+      "totalBytes": 4158,
+      "calldataFelts": 143,
+      "estimatedFeeFri": "3665570567526752976",
+      "estimatedFeeStrk": "3.665570567526752976",
+      "actualFeeFri": "1640285669409768256",
+      "actualFeeStrk": "1.640285669409768256",
+      "confirmationMs": 15470,
+      "readBackMs": 1089,
+      "readBackMatched": true,
+      "articleId": "0x8c1b7817ccc61c6a7e2626bb77407372344ce4f44de468875e23b0ca33590a",
+      "transactionHash": "0x2021180a3b80c11903453caad2b545c8d782093857bcf6ccb19920022930033"
+    },
+    {
+      "name": "long",
+      "bytes": {
+        "title": 36,
+        "subtitle": 93,
+        "body": 22058
+      },
+      "totalBytes": 22187,
+      "calldataFelts": 725,
+      "estimatedFeeFri": "18003566851726329600",
+      "estimatedFeeStrk": "18.0035668517263296",
+      "actualFeeFri": "8005332757587539968",
+      "actualFeeStrk": "8.005332757587539968",
+      "confirmationMs": 19750,
+      "readBackMs": 2073,
+      "readBackMatched": true,
+      "articleId": "0x69e3465bb68a063c603f8ab660caf74402a7c985450536535c113368ee5d0d",
+      "transactionHash": "0x6d0bbad278c7b92378f97451c3e786fd4d38b8ed9b5001c96ed44adc79df43a"
+    }
+  ]
+}

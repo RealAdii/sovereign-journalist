@@ -42,12 +42,14 @@ flowchart LR
   BD -.->|not connected| POOL
 ```
 
+Deployed on Sepolia: `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0` (class `0xb78be67c801a4735dd175bf55c7cc9c64cc620f6e37f3d921bad124c1dfd44`).
+
 ## Data flow rules
 
 - The publisher account signs every publication. The source never connects a wallet.
 - The article id is `0x` + first 31 bytes of SHA-256 over the canonical JSON `{version, title, subtitle, body, sourceStatus, allegationStatus}` after NFC normalization and trimming. The contract receives it as both `article_id` and `approved_digest`.
 - Text is stored as 31-byte big-endian felt chunks per section (title 0, subtitle 1, body 2) with byte lengths in `ArticleMeta`. Reads page 128 chunks at a time. `decodeText` pads each chunk to its expected width so leading zero bytes survive.
-- Limits: title 180, subtitle 420, body 24576 bytes. Mirrored in Cairo and TypeScript, checked in both.
+- Limits: title 180, subtitle 420 bytes in both Cairo and TypeScript. Body: contract hard cap 24576, product limit 16384 in TypeScript (set from the Sepolia fee benchmark). Both are checked before a transaction is built.
 - The session store is the only server state. Records: verification (10 min), capability (2 h), rate-limit windows.
 
 ## Contract interface
