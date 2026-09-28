@@ -8,6 +8,7 @@ import type { IssuedCapability } from "@/lib/types";
 import Notice from "./Notice";
 
 type Status = "idle" | "starting" | "verifying" | "submitting" | "done" | "error";
+const POLL_MS = 3000;
 
 export default function VerificationFlow() {
   const router = useRouter();
@@ -17,13 +18,55 @@ export default function VerificationFlow() {
   const [acknowledged, setAcknowledged] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<FlowHandle | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const closeFlow = useCallback(() => {
+  const stopAll = useCallback(() => {
     handleRef.current?.close();
     handleRef.current = null;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
   }, []);
 
-  useEffect(() => closeFlow, [closeFlow]);
+  useEffect(() => stopAll, [stopAll]);
+
+  const finish = useCallback((capability: IssuedCapability) => {
+    saveSession({
+      token: capability.token,
+      bondStatus: capability.bondStatus,
+      provider: capability.credential.provider,
+      expiresAt: capability.expiresAt,
+    });
+    setIssued(capability);
+    setStatus("done");
+  }, []);
+
+  const poll = useCallback(
+    async (verificationId: string) => {
+      try {
+        const res = await fetch("/api/verify/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ verificationId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.status === "issued") {
+          stopAll();
+          finish(data as IssuedCapability);
+        } else if (data.status === "failed" || res.status === 410) {
+          stopAll();
+          setError(data.detail || data.error || "Verification failed");
+          setStatus("error");
+        } else if (data.status !== "pending" && !res.ok) {
+          stopAll();
+          setError(data.error || "Verification failed");
+          setStatus("error");
+        }
+      } catch {
+        // network blip; keep polling
+      }
+    },
+    [finish, stopAll],
+  );
 
   const handleVerify = useCallback(async () => {
     setStatus("starting");
@@ -34,65 +77,30 @@ export default function VerificationFlow() {
         const data = await startRes.json().catch(() => ({}));
         throw new Error(data.error || "Could not start verification");
       }
-      const { verificationId, requestJson } = (await startRes.json()) as {
-        verificationId: string;
-        requestJson: string;
-      };
+      const { verificationId, requestJson } = (await startRes.json()) as { verificationId: string; requestJson: string };
 
-      // The request was created and signed on the server. The app secret never
-      // reaches the browser. Its context binds the proof to this verificationId.
+      // Signed on the server; the app secret never reaches the browser.
       const request = await ReclaimProofRequest.fromJsonString(requestJson);
-
-      await request.startSession({
-        onSuccess: async (proofs) => {
-          closeFlow();
-          setStatus("submitting");
-          try {
-            const res = await fetch("/api/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ verificationId, proofs }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "Proof verification failed");
-            const capability = data as IssuedCapability;
-            saveSession({
-              token: capability.token,
-              bondStatus: capability.bondStatus,
-              provider: capability.credential.provider,
-              expiresAt: capability.expiresAt,
-            });
-            setIssued(capability);
-            setStatus("done");
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Proof verification failed");
-            setStatus("error");
-          }
-        },
-        onError: (err: Error) => {
-          closeFlow();
-          setError(err?.message || "Verification was cancelled");
-          setStatus("error");
-        },
-      });
-
-      // Portal mode (remote browser verification), embedded in this page. On
-      // desktop the Reclaim browser extension is used automatically if present.
       setStatus("verifying");
+      // Wait a tick so the overlay container is mounted before embedding.
+      await new Promise((r) => setTimeout(r, 0));
       handleRef.current = await request.triggerReclaimFlow(
         containerRef.current ? { target: containerRef.current } : undefined,
       );
+      // The server watches Reclaim for the proof and issues the session itself.
+      pollRef.current = setInterval(() => poll(verificationId), POLL_MS);
+      void poll(verificationId);
     } catch (err) {
-      closeFlow();
+      stopAll();
       setError(err instanceof Error ? err.message : "Verification could not start");
       setStatus("error");
     }
-  }, [closeFlow]);
+  }, [poll, stopAll]);
 
   const cancel = useCallback(() => {
-    closeFlow();
+    stopAll();
     setStatus("idle");
-  }, [closeFlow]);
+  }, [stopAll]);
 
   if (status === "done" && issued) {
     return (
@@ -130,15 +138,15 @@ export default function VerificationFlow() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto text-center">
+    <div className="max-w-lg mx-auto text-center">
       <div className="card p-6 sm:p-8">
         <div className="font-mono text-[11px] text-text-muted mb-4">{"// step_01: credential_verification"}</div>
         <h2 className="text-xl font-bold text-text-primary mb-3">Prove a credential</h2>
         <p className="text-sm text-text-secondary mb-4">
           Reclaim Protocol lets you prove that you can log in to a provider without giving us your
-          password. The verification runs in Reclaim&apos;s portal below (or the Reclaim browser
-          extension if you have it). The proof is checked cryptographically on our server, matched
-          to the exact provider template, and bound to this request so it cannot be replayed.
+          password. The verification runs in Reclaim&apos;s portal (or the Reclaim browser extension if
+          you have it). The proof is checked cryptographically on our server, matched to the exact
+          provider template, and bound to this request so it cannot be replayed.
         </p>
         <div className="mb-6">
           <Notice tone="warn" title="what a proof can reveal">
@@ -148,37 +156,34 @@ export default function VerificationFlow() {
           </Notice>
         </div>
 
-        {status !== "verifying" && (
-          <button
-            onClick={handleVerify}
-            disabled={status === "starting" || status === "submitting"}
-            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {status === "idle" && "Start verification"}
-            {status === "starting" && "Preparing request"}
-            {status === "submitting" && "Checking proof"}
-            {status === "error" && "Retry verification"}
-          </button>
-        )}
-
-        <div
-          ref={containerRef}
-          className={`mt-4 rounded border border-border bg-white overflow-hidden ${status === "verifying" ? "min-h-[560px]" : "hidden"}`}
-          aria-live="polite"
-          aria-label="Reclaim verification"
-        />
+        <button
+          onClick={handleVerify}
+          disabled={status === "starting" || status === "verifying" || status === "submitting"}
+          className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {status === "idle" && "Start verification"}
+          {status === "starting" && "Preparing request"}
+          {status === "verifying" && "Verification in progress"}
+          {status === "submitting" && "Checking proof"}
+          {status === "error" && "Retry verification"}
+        </button>
 
         <div className="mt-4 space-y-2">
-          {status === "verifying" && (
-            <>
-              <Notice tone="info">Complete the verification in the Reclaim portal above. If it opened in a new tab instead, finish it there and come back.</Notice>
-              <button onClick={cancel} className="btn-outline !text-xs w-full">Cancel verification</button>
-            </>
-          )}
-          {status === "submitting" && <Notice tone="ok">Proof received. Verifying signatures, provider template, and challenge on the server.</Notice>}
           {status === "error" && error && <Notice tone="error">{error}</Notice>}
         </div>
       </div>
+
+      {status === "verifying" && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex flex-col p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Reclaim verification">
+          <div className="flex items-center justify-between gap-3 px-2 pb-2 shrink-0">
+            <span className="font-mono text-[11px] text-text-secondary">
+              Complete the login in Reclaim&apos;s portal. This page moves on by itself as soon as the proof is verified.
+            </span>
+            <button onClick={cancel} className="btn-outline !py-1.5 !px-3 !text-xs shrink-0">Cancel</button>
+          </div>
+          <div ref={containerRef} className="flex-1 min-h-0 rounded bg-white overflow-hidden [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0" />
+        </div>
+      )}
     </div>
   );
 }

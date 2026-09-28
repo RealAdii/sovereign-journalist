@@ -261,3 +261,41 @@ describe("tips, recovery, attestation", () => {
     expect(data.dataProcessing.aiProvider).toMatch(/Google/);
   });
 });
+
+describe("server-driven verification status", () => {
+  it("stays pending without a proof, issues once when Reclaim has one, then reports the record as used", async () => {
+    const { POST: statusRoute } = await import("@/app/api/verify/status/route");
+    verifyProof.mockImplementation(async (p: ReturnType<typeof proofFor>) => verifiedFrom(p));
+    const { verificationId, challenge } = await verifiedSession();
+
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [], statusV2: "SESSION_INIT" } });
+    const pending = await statusRoute(post("/api/verify/status", { verificationId }));
+    expect(await pending.json()).toMatchObject({ status: "pending" });
+
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [proofFor(verificationId, "sess", challenge)], statusV2: "PROOF_SUBMITTED" } });
+    const issued = await statusRoute(post("/api/verify/status", { verificationId }));
+    expect(issued.status).toBe(200);
+    const data = await issued.json();
+    expect(data.status).toBe("issued");
+    expect(data.token).toBeTruthy();
+    expect(data.credential.disclosedFields).toEqual(["role"]);
+
+    const again = await statusRoute(post("/api/verify/status", { verificationId }));
+    expect(again.status).toBe(410);
+  });
+
+  it("fails closed when Reclaim reports an error state or the proof does not verify", async () => {
+    const { POST: statusRoute } = await import("@/app/api/verify/status/route");
+    const a = await verifiedSession("5.5.5.5");
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [], statusV2: "ERROR_SUBMISSION_FAILED" } });
+    const failed = await statusRoute(post("/api/verify/status", { verificationId: a.verificationId }, "5.5.5.5"));
+    expect(failed.status).toBe(409);
+
+    verifyProof.mockResolvedValue(REJECTED);
+    const b = await verifiedSession("6.6.6.6");
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [proofFor(b.verificationId, "sess", b.challenge)], statusV2: "PROOF_SUBMITTED" } });
+    const rejected = await statusRoute(post("/api/verify/status", { verificationId: b.verificationId }, "6.6.6.6"));
+    expect(rejected.status).toBe(401);
+    expect((await statusRoute(post("/api/verify/status", { verificationId: b.verificationId }, "6.6.6.6"))).status).toBe(410);
+  });
+});

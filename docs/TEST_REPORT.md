@@ -14,9 +14,9 @@ Generated 2026-09-28 on macOS (Darwin 25.3.0, aarch64), Node 22.14.0, Scarb 2.14
  ✓ tests/session.test.ts (9 tests) 5ms
  ✓ tests/encoding.test.ts (9 tests) 4ms
  ✓ tests/render.test.tsx (1 test) 10ms
- ✓ tests/routes.test.ts (14 tests) 14ms
+ ✓ tests/routes.test.ts (16 tests) 16ms
  Test Files  6 passed (6)
-      Tests  51 passed (51)
+      Tests  53 passed (53)
 ```
 
 What they cover:
@@ -163,6 +163,10 @@ Backend: Ollama (Homebrew service) serving `qwen2.5:7b` on an Apple M-series lap
 
 Caveat observed: the 7B model wrote "the source, who works in finance" from a transcript that only said "our finance team". Small models infer detail. The source-side editor and the identifying-details checklist before publication remain the control, and the prompt's "remove identifying details" rule is advisory only.
 
+## Live Reclaim proof (2026-09-28, 22:40, SDK 5.8.2)
+
+The user completed a verification in the embedded Reclaim portal with their own app and provider (`f9f383fd-32d9-4c54-942f-5e9fda349762`, template version 2.0.1). Reclaim's session endpoint reported `PROOF_SUBMITTED` with one proof whose context carried `contextAddress`, `contextMessage`, `reclaimSessionId`, `isPortalProof`, an attestation nonce, and `extractedParameters: { email }`. Running the server verifier against that proof with the stored challenge and provider version returned VERIFIED with parameter name `email` only. Because the SDK's browser-side `onSuccess` did not fire, completion is now server-driven (`POST /api/verify/status`), covered by two route tests: pending without a proof, issued once with a proof, 410 afterwards; 409 on a Reclaim error state; 401 then 410 on a proof that fails verification.
+
 ## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
 
 These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.
@@ -188,7 +192,6 @@ Observed discrepancy: for an unknown article id, `next start` returns HTTP 404 w
 
 | Item | Blocker | How to run once unblocked |
 | --- | --- | --- |
-| Live Reclaim proof, replay attempt against a live attestor | a person completing the LinkedIn login in the embedded Reclaim portal | credentials are configured and `/api/verify/start` returns a signed js-5.8.2 request with provider version 4.0.0; open /submit/verify on the running dev server, complete the portal flow, then resubmit the same proof and expect 410 |
 | Interview and drafting through Google Gemini | `GEMINI_API_KEY` and `AI_PROVIDER=gemini` | optional; the local Ollama path is verified above |
 | Browser end-to-end against live Reclaim, Gemini, and Sepolia | all of the above | run `npm run test:e2e` after replacing the `page.route` mocks with real credentials; the mocked version passes today |
 | Two-wallet bond linkage analysis | no private bond path exists | blocked by design, see docs/COMPATIBILITY.md |

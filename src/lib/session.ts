@@ -139,6 +139,11 @@ export function saveVerificationRecord(
   });
 }
 
+export function peekVerificationRecord(verificationId: string) {
+  const record = get(`verify:${hash(verificationId, "verification")}`);
+  return record?.type === "verification" ? record : null;
+}
+
 export function consumeVerificationRecord(verificationId: string) {
   const key = `verify:${hash(verificationId, "verification")}`;
   const record = get(key);
