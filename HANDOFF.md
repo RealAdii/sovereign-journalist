@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-28 16:45 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
-Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, plus a fourth commit (Playwright e2e, pool ABI findings). Working tree clean after it. Not pushed.
+Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
 ## Objective
 
