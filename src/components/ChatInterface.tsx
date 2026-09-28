@@ -12,6 +12,16 @@ import type { AiInfo } from "@/lib/ai";
 
 const MIN_MESSAGES_TO_DRAFT = 6;
 
+interface ReceiptSummary {
+  receiptId: string;
+  purpose: "interview" | "draft";
+  model: string;
+  verified: boolean;
+  verdict: string;
+  requestBodyHash?: string;
+  responseBodyHash?: string;
+}
+
 async function readError(res: Response, fallback: string) {
   const data = await res.json().catch(() => ({}));
   return data.error || `${fallback} (${res.status})`;
@@ -31,6 +41,8 @@ export default function ChatInterface({ ai }: { ai: AiInfo }) {
   const [error, setError] = useState<string | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [published, setPublished] = useState<PublishResult | null>(null);
+  const [receipts, setReceipts] = useState<ReceiptSummary[]>([]);
+  const [verifyingReceipts, setVerifyingReceipts] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -158,6 +170,25 @@ export default function ChatInterface({ ai }: { ai: AiInfo }) {
     }
   };
 
+  const verifyReceipts = async () => {
+    if (!token) return;
+    setVerifyingReceipts(true);
+    try {
+      const res = await fetch("/api/attestation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = (await res.json()) as { lastReceipts?: ReceiptSummary[]; attestationVerified?: boolean };
+      setReceipts(data.lastReceipts || []);
+      if (!data.attestationVerified) setError("The enclave attestation could not be verified right now.");
+    } catch {
+      setError("Could not verify AI receipts.");
+    } finally {
+      setVerifyingReceipts(false);
+    }
+  };
+
   const cancel = async () => {
     if (token) await fetch("/api/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }).catch(() => null);
     clearSession();
@@ -184,6 +215,15 @@ export default function ChatInterface({ ai }: { ai: AiInfo }) {
             {ai.disclosure} Nothing about your Reclaim credential values is given to the model, only the
             provider name and the names of the disclosed fields.
           </Notice>
+          {ai.provider === "phala" && (
+            <Notice tone={ai.attestation?.verified ? "ok" : "error"} title={ai.attestation?.verified ? "attested GPU TEE" : "attestation not verified"}>
+              {ai.attestation?.verified
+                ? `This server verified the enclave's hardware attestation (${ai.attestation.verdict}). Every AI reply returns a signed receipt; use "Verify AI receipts" during the interview or open `
+                : `The enclave could not be verified (${ai.attestation?.verdict || "unknown"}). No text will be sent until it is. Details at `}
+              <a href="/api/attestation" target="_blank" rel="noopener noreferrer" className="text-neon-cyan">/api/attestation</a>.
+              The server operator can still read text in transit.
+            </Notice>
+          )}
           <ul className="text-xs text-text-secondary space-y-1.5 list-disc pl-5">
             <li>Do not include names, dates, or details that only you would know.</li>
             <li>You will see and can edit the full article before anything is published.</li>
@@ -218,6 +258,11 @@ export default function ChatInterface({ ai }: { ai: AiInfo }) {
           </div>
         </div>
         <div className="flex gap-2">
+          {ai.provider === "phala" && (
+            <button onClick={verifyReceipts} disabled={verifyingReceipts} className="btn-outline !py-2 !px-3 !text-xs disabled:opacity-50">
+              {verifyingReceipts ? "Verifying" : "Verify AI receipts"}
+            </button>
+          )}
           <button onClick={cancel} className="btn-outline !py-2 !px-3 !text-xs">Cancel</button>
           {canDraft && (
             <button onClick={handleDraft} disabled={drafting || loading || streaming} className="btn-primary !py-2 !px-4 !text-xs disabled:opacity-50">
@@ -249,6 +294,20 @@ export default function ChatInterface({ ai }: { ai: AiInfo }) {
       </div>
 
       {error && <div className="mx-4 sm:mx-6 mb-2"><Notice tone="error">{error}</Notice></div>}
+      {receipts.length > 0 && (
+        <div className="mx-4 sm:mx-6 mb-2">
+          <Notice tone={receipts.every((r) => r.verified) ? "ok" : "warn"} title="signed AI receipts">
+            <ul className="space-y-1">
+              {receipts.map((r) => (
+                <li key={r.receiptId} className="font-mono text-[10px] break-all">
+                  {r.verified ? "verified" : "NOT verified"} · {r.purpose} · {r.model} · receipt {r.receiptId}
+                  {r.responseBodyHash ? ` · response ${r.responseBodyHash.slice(0, 18)}` : ""}
+                </li>
+              ))}
+            </ul>
+          </Notice>
+        </div>
+      )}
 
       <div className="border-t border-border px-4 sm:px-6 py-4 shrink-0">
         <div className="flex gap-3 items-end">

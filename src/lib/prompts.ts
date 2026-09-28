@@ -47,11 +47,38 @@ Return JSON with exactly this structure and nothing else:
 Rules:
 - Write in third person.
 - Every claim from the source is an allegation reported by the source. Label it that way. Do not describe any claim as verified, confirmed, or corroborated unless the transcript cites a public record that the reader can check.
-- Include a short section titled "What has been proven" that states only that the source proved the credential, and a section titled "What has not been independently corroborated".
+- The body MUST contain these two Markdown headings, spelled exactly, each followed by one or two sentences: "## What has been proven" (stating only that the source proved the credential) and "## What has not been independently corroborated". Put them after the main account. Drafts without both headings are rejected.
 - Do not include any detail that could identify the source. Remove names, dates of specific personal events, team sizes, office locations, and unique phrasing from documents.
 - Do not include a confidence score or any numeric rating.
 - Do not use em dashes or en dashes.
 - Output only valid JSON, no Markdown code fences.`;
+}
+
+export const PROVEN_HEADING = "## What has been proven";
+export const UNCORROBORATED_HEADING = "## What has not been independently corroborated";
+
+const PROVEN_TEXT =
+  "The source proved a credential through Reclaim Protocol before the interview. Nothing else in this article is proven by that credential.";
+const UNCORROBORATED_TEXT =
+  "Every claim above is the source's account as reported to the AI journalist. None of it has been independently corroborated.";
+
+function hasHeading(body: string, heading: string) {
+  const title = heading.replace(/^#+\s*/, "").toLowerCase();
+  return body
+    .split("\n")
+    .some((line) => /^#{1,6}\s+/.test(line) && line.replace(/^#{1,6}\s+/, "").trim().toLowerCase() === title);
+}
+
+/**
+ * Guarantees the two honesty sections are present. Models sometimes skip
+ * them (DeepSeek V3.2 via OpenRouter did on 2026-09-29), so missing sections
+ * are appended with fixed wording rather than rejecting the draft.
+ */
+export function ensureRequiredSections(body: string) {
+  let out = body.trimEnd();
+  if (!hasHeading(out, PROVEN_HEADING)) out += `\n\n${PROVEN_HEADING}\n\n${PROVEN_TEXT}`;
+  if (!hasHeading(out, UNCORROBORATED_HEADING)) out += `\n\n${UNCORROBORATED_HEADING}\n\n${UNCORROBORATED_TEXT}`;
+  return out;
 }
 
 export function parseArticleResponse(raw: string): ArticleDraft {
@@ -64,7 +91,7 @@ export function parseArticleResponse(raw: string): ArticleDraft {
     version: 1,
     title,
     subtitle: String(parsed.subtitle ?? "").trim(),
-    body,
+    body: ensureRequiredSections(body),
     sourceStatus: "credential-proven",
     allegationStatus: "reported",
   };
