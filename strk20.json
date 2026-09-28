@@ -1,0 +1,31 @@
+{
+  "name": "Sovereign Journalist",
+  "one_liner": "Prove a credential with Reclaim, be interviewed by an open model in a GPU TEE, approve every word, and publish the full article into a Starknet contract. Bond and tips ride the STRK20 pool.",
+  "category": "Consumer",
+  "inspired_by": "RFP-02",
+  "network": "sepolia",
+  "contracts": [
+    "0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0"
+  ],
+  "transactions": [
+    "0xa15203022d7f71f696cf1e695a910c5b8aee9b25fe6f342005649c1ac32d5f",
+    "0x7ad9a50e742fd313acc03b94a19972526fed35f2c0d286dbb05d0e5c4795c7b",
+    "0x24c263fe6ae1ce5dc70638666f237add225dbe395715bf4b0d880af0e9cb0e3",
+    "0x2021180a3b80c11903453caad2b545c8d782093857bcf6ccb19920022930033",
+    "0x6d0bbad278c7b92378f97451c3e786fd4d38b8ed9b5001c96ed44adc79df43a"
+  ],
+  "strk20": {
+    "pool": "0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
+    "integration": "Private 1 STRK bond paid through the pool to a treasury wallet and refunded privately (privacy SDK server side, Wallet API in the browser); encrypted tip helper contract drafted (contracts/tip_inbox), not deployed.",
+    "status": "bond integration in progress on the testing branch; article registry live"
+  },
+  "demo_url": "",
+  "demo_video": "",
+  "docs": [
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/THREAT_MODEL.md",
+    "docs/COMPATIBILITY.md",
+    "docs/TEST_REPORT.md"
+  ]
+}
