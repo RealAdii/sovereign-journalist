@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-29 00:15 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-29 01:10 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -92,6 +92,15 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - `.env.local` exists (git-ignored, mode 600). It holds the Reclaim app id and secret copied from `~/network-fork/.env.local` (the Network project's Reclaim app, LinkedIn provider by default, X provider commented). `POST /api/verify/start` returned 200 with a signed request, sessionId, and resolvedProviderVersion 4.0.0, so the app credentials are valid. The old Sovereign Journalist Reclaim app only exists as GitHub Actions secrets (`NEXT_PUBLIC_RECLAIM_*` on RealAdii/sovereign-journalist), which cannot be read back and were exposed in bundles; rotate or delete them.
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
+
+## Plan execution: all three work packages merged into `testing` (01:10)
+
+- WP1 (attested AI): `src/lib/phala.ts`, `src/lib/attestation.ts` (verifies Phala's TDX quote with `@phala/aci-verifier` 0.7.2; verified live without a key: compose hash 0637b3d5..., provenance Dstack-TEE/private-ai-gateway@8d0a666a), receipt audit via `POST /api/attestation {token}`, provider order phala > openrouter > ollama > gemini, draft sections enforced in `parseArticleResponse`. Needs `PHALA_API_KEY` for actual inference on that path.
+- WP2 (bond): `src/lib/privacy-sdk.ts`, `src/lib/bond.ts` (per-session amount 1 STRK + dust, note discovery on the treasury, private refund, sweeper, fee floor), routes `/api/bond` (GET status, POST quote), `/api/bond/status`, `/api/bond/refund`, `BondGate.tsx` with Wallet API (get-starknet v6, `strk20InvokeTransaction`), scripts `bond:setup` and `bond:linkage`. SDK vendored at `vendor/starkware-libs-starknet-privacy-sdk-0.14.3-rc.8.tgz` (built from /private/tmp/starknet-privacy-reference/sdk; nests starknet 10.5.0 under it, project stays 10.4.0). Cancel and publish routes now refund a confirmed bond. Env: `NEXT_PUBLIC_BOND_TREASURY_ADDRESS`, `BOND_TREASURY_PRIVATE_KEY`, `BOND_VIEWING_KEY`, `PROVING_SERVICE_URL`, `INDEXER_URL`, `BOND_POOL_FEE_CAP_FRI`.
+- WP3 (hosting): store interface `src/lib/session-store.ts` with file and Neon Postgres (`@neondatabase/serverless` 1.1.0) backends selected by `SESSION_STORE_URL`; every session export is now async (all routes updated). `vercel.json` sets maxDuration. Vercel project linked (`adithya-dineshs-projects/sovereign-journalist`); preview env vars uploaded with `scripts/vercel-env.sh preview` (use `npx vercel@latest`; the older CLI resolved by `npx vercel` cannot add env vars non-interactively). A preview deploy was started with `SESSION_STORE_PATH=/tmp/sessions.json` as a stopgap because no Neon database exists yet; sessions on that preview are per-instance and ephemeral, so only page reads are trustworthy there.
+- Checks after merge: typecheck, lint, 88 unit tests, 12 e2e, build, dash scan all green. Commits through 7dac38b pushed to `testing`.
+- Incident: `npx vercel integration add neon` ran an env pull and overwrote `.env.local`; it was rebuilt from values in the session (new SESSION_SECRET and RATE_LIMIT_SECRET, so earlier local sessions are invalid). Never run `vercel env pull` or `integration add` in this repo without backing up `.env.local`.
+- Still needed from the user: treasury wallet private key + funding (about 10 STRK) + a viewing key choice, a Neon connection string (`SESSION_STORE_URL`), optionally a Phala Cloud API key. Then: `npm run bond:setup -- --shield 5`, live bond from Ready, `npm run bond:linkage`, Vercel preview with Neon, `APP_PUBLIC_URL`, final docs.
 
 ## Plan execution in progress (2026-09-29 00:15)
 
