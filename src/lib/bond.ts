@@ -95,6 +95,7 @@ export function quoteFor(record: CapabilityRecord, fee: bigint): BondQuote {
     totalFri: (expected + fee).toString(),
     recipient: bond.recipient,
     network: "SN_SEPOLIA",
+    refundTxHash: bond.refundTxHash,
   };
 }
 

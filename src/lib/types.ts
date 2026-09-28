@@ -75,6 +75,7 @@ export interface BondQuote {
   totalFri: string;
   recipient: string;
   network: "SN_SEPOLIA";
+  refundTxHash?: string;
 }
 
 export interface CapabilityStatus {

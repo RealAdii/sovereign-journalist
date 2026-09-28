@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { consumePublishCapability, getCapability, releasePublishCapability } from "@/lib/session";
 import { ArticleValidationError, publishArticle, publisherConfigured } from "@/lib/onchain";
+import { refundBond } from "@/lib/bond";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
 import type { ArticleDraft } from "@/lib/types";
 
@@ -29,7 +30,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await publishArticle(body.article, body.approvedDigest);
-    return NextResponse.json(result);
+    // The bond is returned once the article is confirmed onchain. A refund
+    // failure never hides a successful publication; the sweeper retries it.
+    let refund: { status: "refunded" | "pending" | "none"; transactionHash?: string; detail?: string } = { status: "none" };
+    if (record.bondStatus === "confirmed") {
+      try {
+        const quote = await refundBond(body.token!);
+        refund = { status: "refunded", transactionHash: quote.refundTxHash };
+      } catch (error) {
+        refund = { status: "pending", detail: error instanceof Error ? error.message : "refund will be retried" };
+      }
+    }
+    return NextResponse.json({ ...result, refund });
   } catch (error) {
     // A failed or rejected transaction must not burn the session.
     await releasePublishCapability(body.token!);
