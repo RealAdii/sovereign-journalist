@@ -1,8 +1,8 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-28 16:20 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-28 16:45 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
-Committed on `sepolia-rewrite`: 9379fcc (the rebuild) and fee8661 (Reclaim binding fix). Working tree clean. Not pushed.
+Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, plus a fourth commit (Playwright e2e, pool ABI findings). Working tree clean after it. Not pushed.
 
 ## Objective
 
@@ -79,6 +79,13 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - Docs: README, docs/ARCHITECTURE.md (Mermaid), docs/THREAT_MODEL.md, docs/COMPATIBILITY.md, docs/MIGRATION.md, docs/MAINNET_CHECKLIST.md, docs/TEST_REPORT.md.
 - Rendered pages verified from the standalone build. Known quirk: standalone server returns 200 for unknown article ids (body is the not-found page); `next start` returns 404.
 - `src/app/article/[id]/loading.tsx` removed; article page uses static metadata.
+
+## Added 16:45
+
+- Playwright 1.55 e2e: `playwright.config.ts`, `e2e/*.spec.ts`, `npm run test:e2e`, CI job. 12 pass. Mocked backend for secret-dependent routes; labeled as UI flow tests in docs/TEST_REPORT.md.
+- Live pool ABI read via `starknet_getClass`: pool v2.1, `InvokeExternal { contract_address, calldata }` exists, public event `ExternalContractInvoked(contract_address, selector)`, `compile_actions` reverts `NO_REPLAY_PROTECTION` unless the batch has a `UseNote`. So a tip requires the source to already hold a shielded note and costs the 2 STRK fee. Recorded in docs/COMPATIBILITY.md.
+- `Cache-Control: no-store` on verify, recover, capabilities responses.
+- starknet.js 10.4 auto-fills the v3 tip (`recommendedTip`) when omitted; no code change needed.
 
 ## Current work
 

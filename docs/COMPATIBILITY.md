@@ -45,6 +45,29 @@ curl -s -X POST https://api.zan.top/public/starknet-sepolia -H 'content-type: ap
   -d '{"jsonrpc":"2.0","id":1,"method":"starknet_getClassHashAt","params":{"block_id":"latest","contract_address":"0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91"}}'
 ```
 
+### Live pool ABI inspection (class `0x6d163f...bcf83`, `starknet_getClass`, 2026-09-28)
+
+| Fact | Value |
+| --- | --- |
+| `get_version()` | `0x322e31` = "2.1" |
+| `is_paused()` | false |
+| `get_proof_validity_blocks()` | 450 |
+| Auditor public key set | yes (`get_auditor_public_key` non-zero), so viewing keys are escrowed to an auditor key per the pool design |
+| Screener public key set | yes; `apply_actions(actions, screening: Option<ScreeningAttestation>)` takes a deposit screening attestation |
+| Client actions (enum `privacy::actions::ClientAction`) | SetViewingKey, OpenChannel, OpenSubchannel, CreateEncNote, CreateOpenNote, Deposit, UseNote, Withdraw, **InvokeExternal { contract_address, calldata: Span<felt252> }**, ComputeAndInvoke |
+| Server actions | WriteOnce, Append, TransferFrom, TransferTo, Emit*, **Invoke { contract_address, calldata }**, InvokeWithComputation |
+| Public event on an external invoke | `ExternalContractInvoked(contract_address: key, selector: key)`. The helper address and selector are public; the caller is the pool. |
+| `compile_actions(user, key, [InvokeExternal])` (view, dummy user) | reverts `NO_REPLAY_PROTECTION` |
+| `compile_actions(user, key, [Deposit])` | reverts `NO_REPLAY_PROTECTION` |
+| `compile_actions(user, key, [UseNote(dummy), InvokeExternal])` | reverts `SUBCHANNEL_NOT_FOUND` (passes the replay check, fails on the fake note as expected) |
+
+What this establishes:
+
+- Arbitrary calldata to an external contract is a first-class pool action, and the ABI does not force a token or open-note leg inside `InvokeExternal`. The target selector is fixed by the pool (the `Invoke` server action carries no selector), consistent with the `privacy_invoke` convention the helper implements.
+- Every action batch must include a `UseNote` (nullifier) for replay protection. So a tip is only possible for a source that already holds a shielded note, and each tip spends a note and pays the 2 STRK pool fee. A source with no shielded balance cannot send an encrypted tip through the pool at all.
+- Deposits into the pool are subject to a screening attestation, which adds an off-chain party to the tip and bond threat model.
+- Not established: that the fixed selector is `privacy_invoke` with the exact `(…) -> Span<OpenNoteDeposit>` return shape on Sepolia v2.1, and that the pool accepts an empty deposit span. That needs one live transaction from a registered test user with a shielded note.
+
 ### Consequence for the 1 STRK bond
 
 The pool charges 2 STRK per private operation on Sepolia. A private 1 STRK bond would cost the source at least 2 STRK in pool fees to place and the operator at least 2 STRK to refund, so the source would pay more in unavoidable fees than the bond itself. This contradicts the product rule that the source pays only unavoidable network transaction fees, and the fee must be reconsidered before the private bond is designed.

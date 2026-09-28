@@ -106,6 +106,21 @@ scarb build         -> ok
 }
 ```
 
+## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
+
+These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.
+
+```
+  12 passed (13.8s)
+```
+
+- publish: disclosure gate before any input, three interview turns, draft, edit the title, estimate required before publish, fee and article id shown, preview renders a Markdown table and inline code, checkbox gates the publish button, published screen shows article id and transaction link, token removed from the browser.
+- publish: editing after the estimate invalidates it; a 181-byte title disables the estimate with the byte-limit notice.
+- failures: AI 502 shows the error and restores the message; RPC 502 on estimate shows the error inside the editor; publish 502 keeps the editor open, never shows Published, keeps the token; blocked bond redirects the interview to the bond page which lists the blockers and offers no continue button; the real `/api/bond` refuses a receipt; no session redirects to verification.
+- tip: page shows blocked with the missing list and has no form; the real `/api/tips` returns 503 with "Nothing you typed was stored".
+- recovery: valid code (mocked) issues a session and continues; a wrong code against the real route shows "No active session matches".
+- overview and honesty: submit page states Google, permanence, and bond facts; `/api/capabilities` reports tips and confidential compute disabled; `/api/attestation` reports `tee: false`.
+
 ## Rendered page check (standalone build served locally)
 
 Every page was fetched from `node .next/standalone/server.js` and the HTML was inspected after stripping tags: `/`, `/submit`, `/submit/verify`, `/submit/bond`, `/submit/interview`, `/submit/tip`, `/submit/recover`, `/article/<id>`, and every API route returned 200 (or the intended 503 for tips and bond). The submit page shows the Google disclosure, the blocked bond, and the blocked tip path from the live capability report; the tip page shows the live pool class hash. No leaked Markdown (`**`, `| ---`, `[text](url)`) appears in any rendered page.
@@ -116,11 +131,11 @@ Observed discrepancy: for an unknown article id, `next start` returns HTTP 404 w
 
 | Item | Blocker | How to run once unblocked |
 | --- | --- | --- |
-| Registry deployment (class hash, address, tx) | funded publisher account + RPC key | `npm run build:contracts && npm run deploy:sepolia` |
+| Registry deployment (class hash, address, tx) | funded publisher account + RPC key | `npm run build:contracts && npm run deploy:sepolia`. starknet.js 10.4 fills the v3 `tip` from `getEstimateTip().recommendedTip` when it is omitted (checked in `dist/index.js`), so no tip is passed explicitly; if a provider rejects that, pass `{ tip: 0n }` in `execute`. |
 | Fee and latency for short, typical, long articles | same + deployed registry | `npm run benchmark:sepolia`, results land in `docs/benchmarks/` |
 | Byte-for-byte read-back from a fresh process without the server | deployed registry with at least one article | `npm run readback:sepolia -- <articleId> expected.json` |
 | Product article size limit from real measurements | benchmark results | adjust `ARTICLE_LIMITS` and the Cairo constants together |
 | Live Reclaim proof, replay attempt against a live attestor | Reclaim app id, secret, provider id | `npm run dev`, /submit/verify, then resubmit the same proof and expect 410 |
 | Interview and drafting | `GEMINI_API_KEY` | `npm run dev` with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` |
-| Browser end-to-end (publish, tip, recovery, failure cases) | all of the above; Playwright not yet added | add `@playwright/test`, drive /submit with the dev bypass |
+| Browser end-to-end against live Reclaim, Gemini, and Sepolia | all of the above | run `npm run test:e2e` after replacing the `page.route` mocks with real credentials; the mocked version passes today |
 | Two-wallet bond linkage analysis | no private bond path exists | blocked by design, see docs/COMPATIBILITY.md |

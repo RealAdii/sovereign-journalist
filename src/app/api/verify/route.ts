@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         disclosedFields: Object.keys(credential.parameters),
       },
     };
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Proof verification failed";
     return jsonError(message, 401);

@@ -12,5 +12,5 @@ export async function POST(req: NextRequest) {
   }
   const recovered = recoverCapability(body.recoveryCode.trim());
   if (!recovered) return jsonError("No active session matches that recovery code", 404);
-  return NextResponse.json(recovered);
+  return NextResponse.json(recovered, { headers: { "Cache-Control": "no-store" } });
 }

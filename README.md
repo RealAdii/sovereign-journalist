@@ -46,6 +46,7 @@ Requirements: Node 22, npm, Scarb 2.14.0, Starknet Foundry 0.57.0.
 npm ci
 cp .env.example .env.local        # fill in the server-only values you have
 npm run typecheck && npm run lint && npm test && npm run build
+npx playwright install chromium && npm run test:e2e   # browser flow tests with a mocked backend
 npm run build:contracts && npm run test:contracts
 npm run check:sepolia             # read-only, works with no secrets
 npm run dev                       # http://localhost:3000

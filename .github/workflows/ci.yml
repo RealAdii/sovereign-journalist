@@ -25,6 +25,25 @@ jobs:
           NEXT_PUBLIC_STARKNET_NETWORK: sepolia
           NEXT_PUBLIC_STARKNET_CHAIN_ID: SN_SEPOLIA
 
+  e2e:
+    name: Browser flow tests (mocked backend)
+    runs-on: ubuntu-latest
+    needs: [web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+
   contracts:
     name: Cairo build and tests
     runs-on: ubuntu-latest
