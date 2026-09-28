@@ -33,12 +33,22 @@ export function reclaimConfigured() {
   );
 }
 
+// Reclaim's portal completes some templates (the Gmail template among them)
+// only through its AI-assisted flow; the one proof that succeeded in testing
+// carried isAiProof: true. Accepting AI providers lets the portal finish.
+// Verification stays strict: verifyProof checks the exact template version and
+// only additionally allows the "ai" patch tag. Set RECLAIM_ACCEPT_AI=false to
+// require the classic flow.
+export function acceptAiProviders() {
+  return process.env.RECLAIM_ACCEPT_AI !== "false";
+}
+
 export async function createReclaimRequest(verificationId: string, challenge: string) {
   const request = await ReclaimProofRequest.init(
     required("RECLAIM_APP_ID"),
     required("RECLAIM_APP_SECRET"),
     required("RECLAIM_PROVIDER_ID"),
-    { log: false, acceptAiProviders: false },
+    { log: false, acceptAiProviders: acceptAiProviders() },
   );
   request.setContext(verificationId, challenge);
   const version = request.getProviderVersion();
@@ -48,7 +58,7 @@ export async function createReclaimRequest(verificationId: string, challenge: st
     providerVersion: {
       providerId: version.providerId,
       providerVersion: version.providerVersion,
-      allowedTags: version.allowedTags ?? [],
+      allowedTags: acceptAiProviders() ? Array.from(new Set([...(version.allowedTags ?? []), "ai"])) : (version.allowedTags ?? []),
     } satisfies ProviderVersion,
   };
 }

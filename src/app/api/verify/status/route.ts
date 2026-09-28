@@ -30,10 +30,12 @@ export async function POST(req: NextRequest) {
   if (state.startsWith("ERROR") || state.endsWith("FAILED")) {
     await consumeVerificationRecord(body.verificationId);
     const reclaimError = (session as { error?: { type?: string; message?: string } } | undefined)?.error;
+    // Session id and state only: no proof, credential, or IP in logs.
+    console.warn(`reclaim session ${record.reclaimSessionId} ended in ${state}${reclaimError?.type ? ` (${reclaimError.type})` : ""}`);
     const detail = reclaimError?.message
       ? `Reclaim reported ${state}: ${reclaimError.message}`
-      : `Reclaim reported ${state}. This happens on Reclaim's side while generating the proof. Retry, or open the portal in a new tab if the embedded window did not finish.`;
-    return NextResponse.json({ status: "failed", detail, reclaimState: state }, { status: 409 });
+      : `Reclaim reported ${state}. The proof could not be generated in Reclaim's portal (often the provider's login did not complete). Retry, or open the portal in a new tab. Reclaim session ${record.reclaimSessionId}.`;
+    return NextResponse.json({ status: "failed", detail, reclaimState: state, reclaimSessionId: record.reclaimSessionId }, { status: 409 });
   }
   const proofs = session?.proofs || [];
   if (proofs.length === 0) return NextResponse.json({ status: "pending", detail: state });

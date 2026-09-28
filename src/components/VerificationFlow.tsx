@@ -71,8 +71,8 @@ export default function VerificationFlow() {
   const [mode, setMode] = useState<"embedded" | "tab">("embedded");
 
   const handleVerify = useCallback(async (openInTab = false) => {
-    const useTab = openInTab || mode === "tab";
-    if (openInTab) setMode("tab");
+    const useTab = openInTab;
+    setMode(useTab ? "tab" : "embedded");
     setStatus("starting");
     setError(null);
     try {
@@ -99,7 +99,7 @@ export default function VerificationFlow() {
       setError(err instanceof Error ? err.message : "Verification could not start");
       setStatus("error");
     }
-  }, [poll, stopAll, mode]);
+  }, [poll, stopAll]);
 
   const cancel = useCallback(() => {
     stopAll();
@@ -174,13 +174,18 @@ export default function VerificationFlow() {
 
         <div className="mt-4 space-y-2">
           {status === "error" && error && <Notice tone="error">{error}</Notice>}
-          {status === "error" && mode === "embedded" && (
-            <button
-              onClick={() => void handleVerify(true)}
-              className="btn-outline !text-xs w-full"
-            >
-              Open Reclaim in a new tab instead
-            </button>
+          {status === "error" && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button onClick={() => void handleVerify(true)} className="btn-outline !text-xs flex-1">
+                Try in a new tab
+              </button>
+              <button
+                onClick={() => void handleVerify(false)}
+                className="btn-outline !text-xs flex-1"
+              >
+                Try embedded again
+              </button>
+            </div>
           )}
           {mode === "tab" && status === "verifying" && (
             <>

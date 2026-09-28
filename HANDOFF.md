@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-29 03:50 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-29 04:10 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -92,6 +92,11 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - `.env.local` exists (git-ignored, mode 600). It holds the Reclaim app id and secret copied from `~/network-fork/.env.local` (the Network project's Reclaim app, LinkedIn provider by default, X provider commented). `POST /api/verify/start` returned 200 with a signed request, sessionId, and resolvedProviderVersion 4.0.0, so the app credentials are valid. The old Sovereign Journalist Reclaim app only exists as GitHub Actions secrets (`NEXT_PUBLIC_RECLAIM_*` on RealAdii/sovereign-journalist), which cannot be read back and were exposed in bundles; rotate or delete them.
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
+
+## Reclaim PROOF_GENERATION_FAILED fix (04:10)
+
+- Provider f9f383fd is the public "Gmail Account" template v2.0.1 (WITNESS). The only proof that ever succeeded (session f2143ef55e) had `isAiProof: true`; we initialised with `acceptAiProviders: false`, so the portal's classic path failed at Google login. Now `acceptAiProviders()` defaults true (`RECLAIM_ACCEPT_AI=false` to opt out) and the stored `allowedTags` include "ai". Checked: that real proof verifies with `{ providerVersion: "2.0.1", allowedTags: ["ai"] }` and with `[]`.
+- Failed sessions are logged server-side as `reclaim session <id> ended in <state>` (no PII) and the id is shown in the error, so Reclaim can be asked about a specific session. After any failure the verify page offers "Try in a new tab" and "Try embedded again". The 409 in the browser console is the expected response for a failed Reclaim session.
 
 ## Hosted flow unblocked past the bond (03:50)
 
