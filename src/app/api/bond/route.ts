@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BOND_AMOUNT_STRK, BOND_MISSING, DEV_BYPASS_ACTIVE } from "@/lib/capabilities";
-import { BondError, bondBlockers, bondConfigured, issueBondQuote, poolFeeFri, sweepExpiringBonds, treasuryAddress } from "@/lib/bond";
+import { BondError, bondBlockers, bondConfigured, issueBondQuote, poolFeeFri, sweepExpiringBonds, treasuryAddress, treasuryRegistered, TREASURY_NOT_REGISTERED } from "@/lib/bond";
 import { getCapability } from "@/lib/session";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
 
@@ -17,6 +17,9 @@ export async function GET() {
   }
   if (!bondConfigured()) {
     return NextResponse.json({ ...base, status: "blocked", missing: [...bondBlockers(), ...BOND_MISSING] });
+  }
+  if (!(await treasuryRegistered())) {
+    return NextResponse.json({ ...base, status: "blocked", treasury: treasuryAddress(), missing: [TREASURY_NOT_REGISTERED, ...BOND_MISSING] });
   }
   let poolFee: string | null = null;
   try {
@@ -49,6 +52,9 @@ export async function POST(req: NextRequest) {
       503,
       { missing: [...bondBlockers(), ...BOND_MISSING] },
     );
+  }
+  if (!(await treasuryRegistered())) {
+    return jsonError("The treasury is not registered in the pool yet, so a private transfer to it cannot be built.", 503, { missing: [TREASURY_NOT_REGISTERED] });
   }
   try {
     return NextResponse.json(await issueBondQuote(body!.token!, body?.recipient), { headers: { "Cache-Control": "no-store" } });

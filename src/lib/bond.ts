@@ -54,8 +54,32 @@ export async function poolFeeFri(rpcUrl = process.env.STARKNET_SEPOLIA_RPC_URL):
   return value;
 }
 
+let registrationCache: { value: boolean; at: number } | null = null;
+
+/** Whether the treasury has published a viewing key in the pool. A private transfer
+ *  to an unregistered recipient cannot be built, so the bond is not offered until this is true. */
+export async function treasuryRegistered(rpcUrl = process.env.STARKNET_SEPOLIA_RPC_URL): Promise<boolean> {
+  if (registrationCache && Date.now() - registrationCache.at < FEE_CACHE_MS) return registrationCache.value;
+  const pool = process.env.NEXT_PUBLIC_STRK20_POOL_ADDRESS;
+  const treasury = treasuryAddress();
+  if (!pool || !rpcUrl || !treasury) return false;
+  try {
+    const provider = new RpcProvider({ nodeUrl: rpcUrl });
+    const result = await provider.callContract({ contractAddress: pool, entrypoint: "get_public_key", calldata: [treasury] }, "latest");
+    const value = BigInt(result[0] || "0x0") !== 0n;
+    registrationCache = { value, at: Date.now() };
+    return value;
+  } catch {
+    return false;
+  }
+}
+
+export const TREASURY_NOT_REGISTERED =
+  "The treasury has not published a viewing key in the STRK20 pool yet (registration needs a proof; the Sepolia prover currently emits PROOF1, which the pool rejects). Run npm run bond:setup once the prover and SDK agree.";
+
 export function resetBondCachesForTests() {
   feeCache = null;
+  registrationCache = null;
 }
 
 export function isPoolAddress(value: unknown): value is string {
