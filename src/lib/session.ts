@@ -10,6 +10,8 @@ type VerificationRecord = {
   challenge: string;
   reclaimSessionId: string;
   providerVersion: ProviderVersion;
+  /** First time Reclaim reported PROOF_GENERATION_FAILED in the current streak. */
+  generationFailedSince?: number;
 };
 
 type CapabilityRecord = {
@@ -89,6 +91,16 @@ export async function saveVerificationRecord(
 export async function peekVerificationRecord(verificationId: string) {
   const record = await store().get(`verify:${hash(verificationId, "verification")}`);
   return record?.type === "verification" ? record : null;
+}
+
+/** Updates the failure-streak marker on a live verification record. */
+export async function markGenerationFailure(verificationId: string, since: number | undefined) {
+  const key = `verify:${hash(verificationId, "verification")}`;
+  const record = await store().get(key);
+  if (!record || record.type !== "verification") return;
+  if (record.generationFailedSince === since) return;
+  record.generationFailedSince = since;
+  await store().put(key, record);
 }
 
 // One-use: `take` removes and returns atomically, so a replay cannot win a race.

@@ -16,6 +16,7 @@ export default function VerificationFlow() {
   const [error, setError] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedCapability | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<FlowHandle | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -56,7 +57,9 @@ export default function VerificationFlow() {
           stopAll();
           setError(data.detail || data.error || "Verification failed");
           setStatus("error");
-        } else if (data.status !== "pending" && !res.ok) {
+        } else if (data.status === "pending") {
+          setRetrying(Boolean(data.retrying));
+        } else if (!res.ok) {
           stopAll();
           setError(data.error || "Verification failed");
           setStatus("error");
@@ -74,6 +77,7 @@ export default function VerificationFlow() {
     const useTab = openInTab;
     setMode(useTab ? "tab" : "embedded");
     setStatus("starting");
+    setRetrying(false);
     setError(null);
     try {
       const startRes = await fetch("/api/verify/start", { method: "POST" });
@@ -189,7 +193,11 @@ export default function VerificationFlow() {
           )}
           {mode === "tab" && status === "verifying" && (
             <>
-              <Notice tone="info">Reclaim opened in a new tab. Finish the login there; this page moves on by itself once the proof is verified.</Notice>
+              <Notice tone="info">
+                {retrying
+                  ? "Reclaim is retrying proof generation in the other tab. Leave it open; it can take a minute."
+                  : "Reclaim opened in a new tab. Finish the login there; this page moves on by itself once the proof is verified."}
+              </Notice>
               <button onClick={cancel} className="btn-outline !text-xs w-full">Cancel verification</button>
             </>
           )}
@@ -200,7 +208,9 @@ export default function VerificationFlow() {
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex flex-col p-2 sm:p-4" role="dialog" aria-modal="true" aria-label="Reclaim verification">
           <div className="flex items-center justify-between gap-3 px-2 pb-2 shrink-0">
             <span className="font-mono text-[11px] text-text-secondary">
-              Complete the login in Reclaim&apos;s portal. This page moves on by itself as soon as the proof is verified.
+              {retrying
+                ? "Reclaim is retrying proof generation. Keep this window open; it can take a minute."
+                : "Complete the login in Reclaim\u2019s portal. This page moves on by itself as soon as the proof is verified."}
             </span>
             <button onClick={cancel} className="btn-outline !py-1.5 !px-3 !text-xs shrink-0">Cancel</button>
           </div>

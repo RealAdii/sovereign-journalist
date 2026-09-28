@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-29 04:10 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-29 04:30 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -92,6 +92,10 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - `.env.local` exists (git-ignored, mode 600). It holds the Reclaim app id and secret copied from `~/network-fork/.env.local` (the Network project's Reclaim app, LinkedIn provider by default, X provider commented). `POST /api/verify/start` returned 200 with a signed request, sessionId, and resolvedProviderVersion 4.0.0, so the app credentials are valid. The old Sovereign Journalist Reclaim app only exists as GitHub Actions secrets (`NEXT_PUBLIC_RECLAIM_*` on RealAdii/sovereign-journalist), which cannot be read back and were exposed in bundles; rotate or delete them.
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
+
+## Real root cause of the hosted Reclaim failures (04:30)
+
+- Reclaim session 3bcbcf819b (hosted, failed on screen) ended as `PROOF_GENERATION_SUCCESS` at Reclaim: the portal retried after a transient `PROOF_GENERATION_FAILED`, but our status route treated any `*FAILED` as terminal, consumed the record and closed the portal, so the retried proof was never submitted. The SDK's own `startSession` tolerates that state for 30 s (`FAILURE_TIMEOUT`). Now: `PROOF_GENERATION_FAILED` returns `pending, retrying: true` for up to 3 minutes of continuous failure (tracked as `generationFailedSince` on the verification record); only `ERROR_SUBMITTED`, `ERROR_SUBMISSION_FAILED`, `PROOF_SUBMISSION_FAILED` or an exhausted grace period are terminal. The page keeps the portal open and says Reclaim is retrying. Two route tests cover it.
 
 ## Reclaim PROOF_GENERATION_FAILED fix (04:10)
 

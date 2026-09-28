@@ -314,3 +314,37 @@ describe("server-driven verification status", () => {
     expect((await statusRoute(post("/api/verify/status", { verificationId: b.verificationId }, "6.6.6.6"))).status).toBe(410);
   });
 });
+
+describe("transient Reclaim generation failures", () => {
+  it("keeps polling through PROOF_GENERATION_FAILED, then issues when the retried proof arrives", async () => {
+    const { POST: statusRoute } = await import("@/app/api/verify/status/route");
+    verifyProof.mockImplementation(async (p: ReturnType<typeof proofFor>) => verifiedFrom(p));
+    const { verificationId, challenge } = await verifiedSession("7.7.7.7");
+
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [], statusV2: "PROOF_GENERATION_FAILED" } });
+    const first = await statusRoute(post("/api/verify/status", { verificationId }, "7.7.7.7"));
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ status: "pending", retrying: true });
+
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [], statusV2: "PROOF_GENERATION_SUCCESS" } });
+    expect(await (await statusRoute(post("/api/verify/status", { verificationId }, "7.7.7.7"))).json()).toMatchObject({ status: "pending" });
+
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [proofFor(verificationId, "sess", challenge)], statusV2: "PROOF_SUBMITTED" } });
+    const issued = await statusRoute(post("/api/verify/status", { verificationId }, "7.7.7.7"));
+    expect((await issued.json()).status).toBe("issued");
+  });
+
+  it("gives up after the grace period of continuous failure", async () => {
+    const { POST: statusRoute } = await import("@/app/api/verify/status/route");
+    const { verificationId } = await verifiedSession("8.8.8.8");
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", proofs: [], statusV2: "PROOF_GENERATION_FAILED" } });
+    const start = Date.now();
+    const spy = vi.spyOn(Date, "now");
+    spy.mockReturnValue(start);
+    expect((await statusRoute(post("/api/verify/status", { verificationId }, "8.8.8.8"))).status).toBe(200);
+    spy.mockReturnValue(start + 4 * 60 * 1000);
+    const gaveUp = await statusRoute(post("/api/verify/status", { verificationId }, "8.8.8.8"));
+    spy.mockRestore();
+    expect(gaveUp.status).toBe(409);
+  });
+});

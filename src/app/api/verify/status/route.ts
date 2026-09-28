@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchReclaimSession, verifyReclaimProofs } from "@/lib/reclaim";
-import { consumeVerificationRecord, issueCapability, peekVerificationRecord } from "@/lib/session";
+import { consumeVerificationRecord, issueCapability, markGenerationFailure, peekVerificationRecord } from "@/lib/session";
 import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
 import type { IssuedCapability } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+// Reclaim's portal retries proof generation internally, so PROOF_GENERATION_FAILED
+// is often transient (observed live: FAILED, then PROOF_GENERATION_SUCCESS). The SDK
+// itself waits 30 s; the AI-assisted portal can take longer, so we wait 3 minutes.
+const GENERATION_FAILURE_GRACE_MS = 3 * 60 * 1000;
+const TERMINAL_STATES = new Set(["ERROR_SUBMITTED", "ERROR_SUBMISSION_FAILED", "PROOF_SUBMISSION_FAILED"]);
 
 // Server-driven completion. The browser polls this after launching the portal.
 // The server asks Reclaim's session endpoint whether a proof was submitted for
@@ -27,7 +33,19 @@ export async function POST(req: NextRequest) {
   }
   const session = status.session;
   const state = session?.statusV2 || "UNKNOWN";
-  if (state.startsWith("ERROR") || state.endsWith("FAILED")) {
+  const now = Date.now();
+  let terminal = TERMINAL_STATES.has(state);
+  if (state === "PROOF_GENERATION_FAILED") {
+    const since = record.generationFailedSince ?? now;
+    if (record.generationFailedSince === undefined) await markGenerationFailure(body.verificationId, since);
+    if (now - since < GENERATION_FAILURE_GRACE_MS) {
+      return NextResponse.json({ status: "pending", detail: "Reclaim is retrying proof generation. Keep the portal open.", reclaimState: state, retrying: true });
+    }
+    terminal = true;
+  } else if (record.generationFailedSince !== undefined) {
+    await markGenerationFailure(body.verificationId, undefined);
+  }
+  if (terminal) {
     await consumeVerificationRecord(body.verificationId);
     const reclaimError = (session as { error?: { type?: string; message?: string } } | undefined)?.error;
     // Session id and state only: no proof, credential, or IP in logs.
