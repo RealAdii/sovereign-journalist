@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-28 17:15 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-28 18:55 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -95,7 +95,8 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 
 ## Blocked on the user (17:15)
 
-- Agent permission classifier denies `git push`, `gh pr create`, and edits to Claude settings. The user must either run the two commands with the `!` prefix or add Bash allow rules for `git push:*` and `gh pr create:*` via `/permissions`. PR body is in `docs/PR_BODY.md` (`gh pr create ... -F docs/PR_BODY.md`).
+- Branch pushed and PR opened by the user at 18:53: https://github.com/RealAdii/sovereign-journalist/pull/1 (token needed `gh auth refresh -s workflow` first because the branch adds a workflow file). CI running. The agent still cannot push; the user pushes follow-up commits.
+- `.env.local` now has the Alchemy Sepolia RPC (`starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/<key>`; the `v0_8` path errors). Mainnet URL from the same app must never be used.
 - Publisher account: the user wants their Ready wallet (already funded on Sepolia). The key cannot be read from the extension. User exports it (Ready extension, Settings, account, Export private key) and pastes address + key into `.env.local`. Interim RPC in `.env.local` is the zan.top public endpoint; replace with a keyed one when available.
 
 ## Current work
