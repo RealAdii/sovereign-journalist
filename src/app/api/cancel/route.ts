@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const body = await readJson<{ token?: string }>(req);
-  const record = getCapability(body?.token);
+  const record = await getCapability(body?.token);
   if (!record) return jsonError("Invalid or expired session", 401);
-  cancelCapability(body?.token);
+  await cancelCapability(body?.token);
   return NextResponse.json({
     cancelled: true,
     bondStatus: record.bondStatus,

@@ -8,5 +8,5 @@ if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_WITHOUT_PRIVA
   console.error("Refusing: development bypass is not enabled.");
   process.exit(2);
 }
-const issued = issueCapability({ provider: "dev-fixture", parameters: { role: "staff" }, verifiedAt: new Date().toISOString() });
+const issued = await issueCapability({ provider: "dev-fixture", parameters: { role: "staff" }, verifiedAt: new Date().toISOString() });
 console.log(JSON.stringify({ token: issued.token, bondStatus: issued.bondStatus, expiresAt: issued.expiresAt }));

@@ -8,11 +8,11 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (rateLimited(req, "generate", 10, 10 * 60 * 1000)) return tooManyRequests();
+  if (await rateLimited(req, "generate", 10, 10 * 60 * 1000)) return tooManyRequests();
   const body = await readJson<{ messages?: unknown; token?: string }>(req);
   if (!body) return jsonError("Invalid request body", 400);
 
-  const gate = requireBondedCapability(body.token);
+  const gate = await requireBondedCapability(body.token);
   if ("error" in gate) {
     return gate.error === "bond-blocked"
       ? jsonError("Article drafting requires a confirmed bond, which is blocked on Sepolia", 403)
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return jsonError("The interview is too short to draft an article", 400);
   }
   if (!aiConfigured()) return jsonError("The AI interview is not configured", 503);
-  if (!recordAiRequest(body.token!)) {
+  if (!(await recordAiRequest(body.token!))) {
     return jsonError("This session has reached its AI request limit", 429);
   }
 

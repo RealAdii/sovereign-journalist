@@ -8,11 +8,11 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (rateLimited(req, "estimate", 20, 10 * 60 * 1000)) return tooManyRequests();
+  if (await rateLimited(req, "estimate", 20, 10 * 60 * 1000)) return tooManyRequests();
   const body = await readJson<{ article?: ArticleDraft; token?: string }>(req);
   if (!body?.article) return jsonError("An article is required", 400);
 
-  const gate = requireBondedCapability(body.token);
+  const gate = await requireBondedCapability(body.token);
   if ("error" in gate) {
     return gate.error === "bond-blocked"
       ? jsonError("Publishing requires a confirmed bond, which is blocked on Sepolia", 403)

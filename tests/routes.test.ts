@@ -92,8 +92,8 @@ async function verifiedSession(ip = "1.1.1.1") {
   return { verificationId, challenge, ip };
 }
 
-beforeEach(() => {
-  resetStoreForTests();
+beforeEach(async () => {
+  await resetStoreForTests();
   verifyProof.mockReset();
   sessionLookup.mockReset();
   sessionLookup.mockReturnValue({ session: { appId: "0xapp", providerId: "provider-123", providerVersionString: "4.0.0", httpProviderId: ["provider-123"], proofs: [{ identifier: "0x1" }], statusV2: "PROOF_SUBMITTED" } });
@@ -154,7 +154,7 @@ describe("verification routes", () => {
     const recovered = await recover(post("/api/recover", { recoveryCode: data.recoveryCode }));
     expect(recovered.status).toBe(200);
     expect((await recovered.json()).token).not.toBe(data.token);
-    expect(getCapability(data.token)).toBeNull();
+    expect(await getCapability(data.token)).toBeNull();
   });
 
   it("rejects a forged proof and consumes the record", async () => {
@@ -193,7 +193,7 @@ describe("bond gating", () => {
 
   it("blocks interview, estimate, and publish for a session without a bond", async () => {
     const { issueCapability } = await import("@/lib/session");
-    const { token } = issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
+    const { token } = await issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
     const bondRes = await bond(post("/api/bond", { token, transactionHash: "0xpublic" }));
     expect(bondRes.status).toBe(503);
     expect((await interview(post("/api/interview", { token, messages: [{ role: "user", content: "hi" }] }))).status).toBe(403);
@@ -212,12 +212,12 @@ describe("publish with the development bypass", () => {
   it("publishes once, refuses a duplicate, and releases the session if the chain rejects", async () => {
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
     const { issueCapability } = await import("@/lib/session");
-    const { token } = issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
+    const { token } = await issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
 
     publishArticle.mockRejectedValueOnce(new Error("Sepolia rejected the publication transaction"));
     const failed = await publish(post("/api/publish", { token, article, approvedDigest: "0xabc" }));
     expect(failed.status).toBe(502);
-    expect(getCapability(token)?.usedForPublish).toBe(false);
+    expect((await getCapability(token))?.usedForPublish).toBe(false);
 
     publishArticle.mockResolvedValueOnce({ articleId: "0xabc", transactionHash: "0xtx", readBackMatched: true, explorerUrl: "u" });
     const ok = await publish(post("/api/publish", { token, article, approvedDigest: "0xabc" }));
@@ -232,7 +232,7 @@ describe("publish with the development bypass", () => {
   it("returns a field-level error when the article exceeds the byte limit", async () => {
     process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND = "true";
     const { issueCapability } = await import("@/lib/session");
-    const { token } = issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
+    const { token } = await issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
     const { ArticleValidationError } = await import("@/lib/onchain");
     estimatePublication.mockRejectedValueOnce(new ArticleValidationError("too long", "body", 30000, 24576));
     const res = await estimate(post("/api/publish/estimate", { token, article }));
