@@ -42,6 +42,16 @@ import { POST as recover } from "@/app/api/recover/route";
 import { GET as attestation } from "@/app/api/attestation/route";
 import { resetStoreForTests, getCapability } from "@/lib/session";
 
+// The verify route looks the session up at api.reclaimprotocol.org. Stub it.
+const sessionLookup = vi.fn();
+vi.stubGlobal("fetch", (input: string | URL | Request) => {
+  const url = String(input);
+  if (url.startsWith("https://api.reclaimprotocol.org/api/sdk/session/")) {
+    return Promise.resolve(new Response(JSON.stringify(sessionLookup(url)), { status: 200 }));
+  }
+  return Promise.reject(new Error(`unexpected fetch ${url}`));
+});
+
 function post(path: string, body: unknown, ip = "1.1.1.1") {
   return new NextRequest(`http://localhost${path}`, {
     method: "POST",
@@ -56,11 +66,11 @@ function proofFor(verificationId: string, sessionId = "sess", challenge = "") {
     signatures: ["0xsig"],
     witnesses: [],
     claimData: {
-      provider: "provider-123",
+      provider: "http",
       parameters: "{}",
       owner: "0xowner",
       timestampS: 1,
-      context: JSON.stringify({ address: verificationId, message: challenge, sessionId, extractedParameters: { role: "staff" } }),
+      context: JSON.stringify({ contextAddress: verificationId, contextMessage: challenge, sessionId, providerHash: "0xhash", extractedParameters: { role: "staff" } }),
       identifier: "0x1",
       epoch: 1,
     },
@@ -77,6 +87,8 @@ async function verifiedSession(ip = "1.1.1.1") {
 beforeEach(() => {
   resetStoreForTests();
   verifyProof.mockReset();
+  sessionLookup.mockReset();
+  sessionLookup.mockReturnValue({ session: { appId: "0xapp", httpProviderId: ["provider-123"], proofs: [{ identifier: "0x1" }], statusV2: "PROOF_SUBMITTED" } });
   publishArticle.mockReset();
   estimatePublication.mockReset();
   delete process.env.ALLOW_DEV_WITHOUT_PRIVATE_BOND;
@@ -129,6 +141,8 @@ describe("verification routes", () => {
     const replay = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId, "sess", challenge)] }));
     expect(replay.status).toBe(410);
 
+    expect(sessionLookup).toHaveBeenCalledWith("https://api.reclaimprotocol.org/api/sdk/session/sess");
+
     const recovered = await recover(post("/api/recover", { recoveryCode: data.recoveryCode }));
     expect(recovered.status).toBe(200);
     expect((await recovered.json()).token).not.toBe(data.token);
@@ -142,6 +156,15 @@ describe("verification routes", () => {
     expect(res.status).toBe(401);
     const again = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId)] }));
     expect(again.status).toBe(410);
+  });
+
+  it("rejects a valid proof that the initiated session did not produce", async () => {
+    verifyProof.mockResolvedValue(true);
+    sessionLookup.mockReturnValue({ session: { appId: "0xapp", httpProviderId: ["provider-123"], proofs: [{ identifier: "0xforeign" }] } });
+    const { verificationId, challenge } = await verifiedSession();
+    const res = await completeVerify(post("/api/verify", { verificationId, proofs: [proofFor(verificationId, "sess", challenge)] }));
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toMatch(/not produced/);
   });
 
   it("rate limits verification starts per client", async () => {

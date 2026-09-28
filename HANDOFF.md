@@ -1,6 +1,8 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-28 16:05 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-28 16:20 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+
+Committed on `sepolia-rewrite`: 9379fcc (the rebuild) and a second commit (Reclaim binding fix). Working tree clean after the second commit. Not pushed.
 
 ## Objective
 
@@ -88,15 +90,14 @@ All local work is done and should be committed on `sepolia-rewrite` (check `git 
 4. Optional: add Playwright end-to-end tests with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and a Gemini key.
 5. Decide with the user whether to redesign the bond given the 2 STRK pool fee, or keep it blocked.
 
-## Important compatibility detail
+## Important compatibility detail (corrected 16:20)
 
-The installed `@reclaimprotocol/js-sdk` 4.12.0 exports `verifyProof(proof, allowAiWitness)` returning a boolean. It does not expose the newer docs' provider-version configuration overload. The implementation should:
+The installed `@reclaimprotocol/js-sdk` 4.12.0 exports `verifyProof(proof, allowAiWitness)` returning a boolean. Verified from the SDK source:
 
-- call `verifyProof(proof, false)`
-- compare `proof.claimData.provider` with `RECLAIM_PROVIDER_ID`
-- verify the signed context address and message against the server-created verification ID and challenge
-- compare the Reclaim session ID if the proof context contains it
-- consume the stored verification record before issuing a capability
+- Proof context fields are `contextAddress` and `contextMessage` (plus `extractedParameters`, `providerHash`), not `address` and `message`. The earlier plan had this wrong; `src/lib/reclaim.ts` now uses the correct names.
+- `proof.claimData.provider` is the provider TYPE (`"http"`), not the provider id. Do not compare it to `RECLAIM_PROVIDER_ID`. Binding is done by fetching `https://api.reclaimprotocol.org/api/sdk/session/<sessionId>` and checking `appId`, `httpProviderId`, and that the proof identifier is in `session.proofs`.
+- Optional `RECLAIM_PROVIDER_HASH` pins the template hash.
+- The verification record is consumed before the proof is checked.
 
 ## Commands
 

@@ -83,10 +83,13 @@ No hardware attestation is verified. `/api/attestation` returns `tee: false` and
 
 ## Reclaim
 
-- `verifyProof(proof, false)` from js-sdk 4.12.0 is used. AI witnesses are rejected.
-- Provider id is compared to `RECLAIM_PROVIDER_ID`. The installed SDK does not expose the newer docs' provider-version overload, so the provider version is not checked. Pin the provider template version in the Reclaim dashboard.
-- The proof context (`address`, `message`) is compared to the server-created `verificationId` and challenge, and `sessionId` when present.
-- Live proof generation was not exercised: no Reclaim app credentials were available. The flow is unit tested with a mocked signature check.
+Field names were checked against the installed SDK source (`node_modules/@reclaimprotocol/js-sdk/dist/index.js`, 4.12.0), not against documentation from memory:
+
+- `setContext(address, message)` stores `{ contextAddress, contextMessage }`; the attestor copies that into `proof.claimData.context` as a JSON string together with `extractedParameters` and `providerHash`. The server compares `contextAddress` to the `verificationId` and `contextMessage` to the challenge it generated.
+- `proof.claimData.provider` is the provider type (for example `"http"`), not the dashboard provider id. It is therefore not used for binding. Instead the server fetches `https://api.reclaimprotocol.org/api/sdk/session/<sessionId>` for the session it created and requires `session.appId == RECLAIM_APP_ID`, `RECLAIM_PROVIDER_ID` in `session.httpProviderId`, and the submitted proof's `identifier` in `session.proofs`. This is a live dependency on Reclaim's backend; if it is unreachable the verification fails closed.
+- Optional `RECLAIM_PROVIDER_HASH` pins the template hash found in the proof context.
+- `verifyProof(proof, false)` checks attestor signatures over the claim. AI witnesses are rejected. The installed SDK does not expose the newer docs' provider-version overload.
+- Live proof generation was not exercised: no Reclaim app credentials were available. The flow is unit tested with a mocked signature check and a stubbed session lookup, using fixtures in the SDK's field shapes.
 
 ## What can be run today without secrets
 

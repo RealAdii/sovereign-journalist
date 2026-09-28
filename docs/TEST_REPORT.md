@@ -9,21 +9,21 @@ Generated 2026-09-28 on macOS (Darwin 25.3.0, aarch64), Node 22.14.0, Scarb 2.14
 > vitest run
  RUN  v3.2.7 /Users/adithya/sovereign-journalist-sepolia
  ✓ tests/gemini.test.ts (2 tests) 2ms
- ✓ tests/reclaim.test.ts (6 tests) 3ms
+ ✓ tests/reclaim.test.ts (8 tests) 4ms
  ✓ tests/session.test.ts (9 tests) 5ms
  ✓ tests/encoding.test.ts (9 tests) 4ms
  ✓ tests/render.test.tsx (1 test) 10ms
- ✓ tests/routes.test.ts (13 tests) 13ms
+ ✓ tests/routes.test.ts (14 tests) 14ms
  Test Files  6 passed (6)
-      Tests  40 passed (40)
+      Tests  43 passed (43)
 ```
 
 What they cover:
 
 - `encoding.test.ts`: 31-byte chunk round trip including leading NUL bytes, all-zero chunks, CJK and emoji across chunk boundaries; chunk-count formula equals the Cairo `(n + 30) / 31`; calldata argument order; digest determinism, width, NFC normalization; byte-limit errors with field, size, max.
 - `session.test.ts`: verification record one-use and expiry; capability starts blocked; bond gate; publish single-use and release after a failed transaction; 30-call AI cap; recovery rotates the token; raw tokens never stored; rate-limit window.
-- `reclaim.test.ts`: valid bound proof accepted; forged signature, wrong provider, wrong verification id, wrong challenge, wrong session id, and wrong proof count all rejected (with `verifyProof` mocked).
-- `routes.test.ts`: `/api/verify/start` output carries no secret; unknown id 410; wrong challenge 401 then replay 410; forged proof 401 then replay 410; full happy path issues a capability with recovery code and disclosed field names only; per-IP rate limiting; `/api/bond` reports blocked with the dependency list and refuses receipts (401 without session, 503 with); interview, estimate, publish all 403 without a bond and 401 with a bad token; with the dev bypass, publish succeeds once, refuses a duplicate with 409, and a chain rejection releases the session; byte-limit error returns field-level 422; tips always 503 with nothing stored; recovery code validation; attestation never claims a TEE.
+- `reclaim.test.ts`: valid bound proof accepted; forged signature, session for another provider or app, proof the session never produced, missing session, wrong verification id, wrong challenge, wrong session id, pinned provider hash mismatch, and wrong proof count all rejected (with `verifyProof` mocked and the session lookup injected). Fixtures use the SDK's real context field names (`contextAddress`, `contextMessage`, `providerHash`).
+- `routes.test.ts`: `/api/verify/start` output carries no secret; unknown id 410; wrong challenge 401 then replay 410; forged proof 401 then replay 410; full happy path issues a capability with recovery code and disclosed field names only, and calls the Reclaim session endpoint; a valid proof that the session did not produce is rejected; per-IP rate limiting; `/api/bond` reports blocked with the dependency list and refuses receipts (401 without session, 503 with); interview, estimate, publish all 403 without a bond and 401 with a bad token; with the dev bypass, publish succeeds once, refuses a duplicate with 409, and a chain rejection releases the session; byte-limit error returns field-level 422; tips always 503 with nothing stored; recovery code validation; attestation never claims a TEE.
 - `render.test.tsx`: `ArticleBody` renders a GFM table, inline code, bold, link, list, and heading as HTML with no leaked Markdown syntax.
 - `gemini.test.ts`: draft parser strips fences, drops confidence scores and tags, rejects empty drafts.
 
