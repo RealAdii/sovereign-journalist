@@ -1,15 +1,16 @@
 import { RpcProvider } from "starknet";
 import { aiInfo, aiReachable } from "./ai";
 import { publisherConfigured, registryConfigured } from "./onchain";
+import { bondBlockers, bondConfigured, treasuryAddress } from "./bond";
 import type { CapabilitiesReport } from "./types";
 
 export const BOND_AMOUNT_STRK = "1";
 
+// Still open even when the treasury is configured: these are the live proofs
+// the spec asks for before the path can be called anonymous in production.
 export const BOND_MISSING = [
-  "A verified STRK20 Sepolia pool address, pinned in configuration after a live class-hash check",
-  "A Sepolia wallet exposing Wallet API 0.10.3 or newer with strk20InvokeTransaction (Ready extension on Sepolia was not verified in this environment)",
-  "A private escrow helper contract that returns a session-bound admission receipt to the server without exposing the payer address",
-  "An unlinkable refund path (private transfer to a fresh note) demonstrated with two unrelated funded wallets and RPC inspection",
+  "A Sepolia wallet exposing Wallet API 0.10.3 or newer with strk20InvokeTransaction (check with the wallet probe on the bond page)",
+  "The two-wallet linkage analysis (scripts/bond-linkage-check.mts) run on a real bond and refund, with results in docs/TEST_REPORT.md",
   "A metadata analysis showing IP address and timing do not relink bond payment and interview session",
 ];
 
@@ -63,14 +64,16 @@ export async function capabilitiesReport(): Promise<CapabilitiesReport> {
             : `${ai.disclosure} The backend is configured but not reachable right now (model not pulled or server down).`,
     },
     anonymousBond: {
-      configured: false,
-      enabled: DEV_BYPASS_ACTIVE,
+      configured: bondConfigured(),
+      enabled: DEV_BYPASS_ACTIVE || bondConfigured(),
       amount: BOND_AMOUNT_STRK,
       token: "STRK",
       reason: DEV_BYPASS_ACTIVE
         ? "Development bypass is active. No bond is collected and no anonymity is claimed. This mode is refused in production."
-        : "The anonymous bonded interview is blocked. A public ERC-20 transfer would link the payer to the interview, so it is not offered as a substitute.",
-      missing: BOND_MISSING,
+        : bondConfigured()
+          ? `The 1 STRK bond is paid as a private STRK20 transfer to the treasury ${treasuryAddress()} and refunded the same way. Amounts inside the pool are encrypted; the treasury confirms the payment with its viewing key. The pool charges its own fee per private operation on top.`
+          : "The anonymous bonded interview is blocked until the treasury is configured. A public ERC-20 transfer would link the payer to the interview, so it is not offered as a substitute.",
+      missing: bondConfigured() ? BOND_MISSING : [...bondBlockers(), ...BOND_MISSING],
     },
     encryptedTips: {
       configured: tipInboxConfigured,

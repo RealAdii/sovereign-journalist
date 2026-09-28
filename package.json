@@ -18,13 +18,16 @@
     "readback:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/readback-verify.mts",
     "check:dashes": "node scripts/check-dashes.mjs",
     "test:e2e": "playwright test",
-    "dev:capability": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/issue-dev-capability.mts"
+    "dev:capability": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/issue-dev-capability.mts",
+    "bond:setup": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/bond-setup.mts",
+    "bond:linkage": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/bond-linkage-check.mts"
   },
   "dependencies": {
     "@reclaimprotocol/js-sdk": "5.8.2",
     "@starknet-io/get-starknet-discovery": "6.0.3",
     "@starknet-io/get-starknet-wallet-standard": "6.0.3",
     "@starknet-io/types-js": "0.10.3",
+    "@starkware-libs/starknet-privacy-sdk": "file:vendor/starkware-libs-starknet-privacy-sdk-0.14.3-rc.8.tgz",
     "@tailwindcss/typography": "^0.5.19",
     "next": "14.2.35",
     "react": "^18",

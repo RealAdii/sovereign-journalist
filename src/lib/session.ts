@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import type { VerifiedCredential } from "./types";
+import type { BondRecord, BondStatus, VerifiedCredential } from "./types";
 import type { ProviderVersion } from "./reclaim";
 
 type VerificationRecord = {
@@ -17,10 +17,13 @@ type CapabilityRecord = {
   expiresAt: number;
   credential: VerifiedCredential;
   recoveryHash: string;
-  bondStatus: "blocked" | "confirmed" | "dev-bypass";
+  bondStatus: BondStatus;
+  bond?: BondRecord;
   usedForPublish: boolean;
   aiRequests: number;
 };
+
+export type { CapabilityRecord };
 
 type RateLimitRecord = {
   type: "rate-limit";
@@ -180,8 +183,41 @@ export function getCapability(token: string | undefined) {
 export function requireBondedCapability(token: string | undefined) {
   const record = getCapability(token);
   if (!record) return { error: "invalid" as const };
-  if (record.bondStatus === "blocked") return { error: "bond-blocked" as const };
+  if (record.bondStatus !== "confirmed" && record.bondStatus !== "dev-bypass") {
+    return { error: "bond-blocked" as const };
+  }
   return { record };
+}
+
+/** Bond bookkeeping. The token is never stored; the record is found by its HMAC key. */
+export function setBondState(token: string, bondStatus: BondStatus, bond: BondRecord | undefined) {
+  const key = `cap:${hash(token, "capability")}`;
+  const record = get(key);
+  if (!record || record.type !== "capability") return null;
+  record.bondStatus = bondStatus;
+  record.bond = bond;
+  put(key, record);
+  return record;
+}
+
+/** Live capability records with their store keys, for uniqueness checks and sweeps. */
+export function listCapabilityRecords(): { key: string; record: CapabilityRecord }[] {
+  loadStore();
+  const out: { key: string; record: CapabilityRecord }[] = [];
+  for (const [key, record] of memoryStore) {
+    if (key.startsWith("cap:") && record.type === "capability" && record.expiresAt > Date.now()) {
+      out.push({ key, record });
+    }
+  }
+  return out;
+}
+
+export function updateCapabilityByKey(key: string, patch: Partial<CapabilityRecord>) {
+  const record = get(key);
+  if (!record || record.type !== "capability") return null;
+  Object.assign(record, patch);
+  put(key, record);
+  return record;
 }
 
 export function recordAiRequest(token: string) {
@@ -244,7 +280,7 @@ export function recoverCapability(recoveryCode: string) {
       const token = randomToken();
       remove(key);
       put(`cap:${hash(token, "capability")}`, record);
-      return { token, expiresAt: record.expiresAt, bondStatus: record.bondStatus };
+      return { token, expiresAt: record.expiresAt, bondStatus: record.bondStatus, bond: record.bond };
     }
   }
   return null;

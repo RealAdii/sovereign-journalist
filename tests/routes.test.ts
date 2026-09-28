@@ -191,6 +191,21 @@ describe("bond gating", () => {
     expect(res.status).toBe(401);
   });
 
+  it("status and refund routes require a session and a configured treasury", async () => {
+    const { POST: status } = await import("@/app/api/bond/status/route");
+    const { POST: refund } = await import("@/app/api/bond/refund/route");
+    expect((await status(post("/api/bond/status", { token: "bad" }))).status).toBe(401);
+    expect((await refund(post("/api/bond/refund", { token: "bad" }))).status).toBe(401);
+    const { issueCapability } = await import("@/lib/session");
+    const { token } = issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
+    // No BOND_* env in tests: the private path is not configured, so nothing can be confirmed or refunded.
+    expect((await status(post("/api/bond/status", { token }))).status).toBe(503);
+    expect((await refund(post("/api/bond/refund", { token }))).status).toBe(503);
+    const quoteRes = await bond(post("/api/bond", { token, recipient: "0x1" }));
+    expect(quoteRes.status).toBe(503);
+    expect((await quoteRes.json()).missing.some((m: string) => m.includes("BOND_TREASURY_PRIVATE_KEY"))).toBe(true);
+  });
+
   it("blocks interview, estimate, and publish for a session without a bond", async () => {
     const { issueCapability } = await import("@/lib/session");
     const { token } = issueCapability({ provider: "provider-123", parameters: {}, verifiedAt: "now" });
