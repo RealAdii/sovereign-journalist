@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-28 22:15 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-28 22:50 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -93,6 +93,12 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
 
+## Reclaim rewritten for SDK 5.8.2 (22:45, commit 8cf3ca5)
+
+- User flagged the 4.12.0 iframe/share-page flow as the discontinued app-clip approach. Upgraded to `@reclaimprotocol/js-sdk@5.8.2` (exact). Browser now uses `triggerReclaimFlow({ target })` (portal embedded in the page, or the extension); `VerificationIframe.tsx` deleted. Server stores `getProviderVersion()` with the verification record and calls `verifyProof(proof, { providerId, providerVersion, allowedTags })`, using the returned trusted `data[0]` rather than raw claimData. Session lookup binding kept.
+- 51 unit, 12 e2e pass; build green. Live `/api/verify/start` shows `sdkVersion js-5.8.2`, provider version 4.0.0.
+- Dev server for the user's test runs on :3000 (`next dev`, dev bypass on). A human still needs to complete the LinkedIn portal login once.
+
 ## AI backend switched to a local open model (22:15)
 
 - User asked for an open-source model with no web-dashboard keys. Chose Ollama (`brew install ollama`, server started manually with `ollama serve`; `brew services start ollama` still to be run for persistence), model `qwen2.5:7b` pulled to `~/.ollama/models`.
@@ -126,9 +132,9 @@ All local work is done and should be committed on `sepolia-rewrite` (check `git 
 4. Optional: add Playwright end-to-end tests with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and a Gemini key.
 5. Decide with the user whether to redesign the bond given the 2 STRK pool fee, or keep it blocked.
 
-## Important compatibility detail (corrected 16:20)
+## Important compatibility detail (corrected 16:20, superseded 22:45 by the SDK 5.8.2 section above)
 
-The installed `@reclaimprotocol/js-sdk` 4.12.0 exports `verifyProof(proof, allowAiWitness)` returning a boolean. Verified from the SDK source:
+The previously installed `@reclaimprotocol/js-sdk` 4.12.0 exported `verifyProof(proof, allowAiWitness)` returning a boolean. Verified from the SDK source:
 
 - Proof context fields are `contextAddress` and `contextMessage` (plus `extractedParameters`, `providerHash`), not `address` and `message`. The earlier plan had this wrong; `src/lib/reclaim.ts` now uses the correct names.
 - `proof.claimData.provider` is the provider TYPE (`"http"`), not the provider id. Do not compare it to `RECLAIM_PROVIDER_ID`. Binding is done by fetching `https://api.reclaimprotocol.org/api/sdk/session/<sessionId>` and checking `appId`, `httpProviderId`, and that the proof identifier is in `session.proofs`.
