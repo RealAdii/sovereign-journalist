@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import type { VerifiedCredential } from "./types";
+import type { BondRecord, BondStatus, VerifiedCredential } from "./types";
 import type { ProviderVersion } from "./reclaim";
 import { getSessionStore, resetSessionStoreForTests, type SessionStore } from "./session-store";
 
@@ -16,10 +16,13 @@ type CapabilityRecord = {
   expiresAt: number;
   credential: VerifiedCredential;
   recoveryHash: string;
-  bondStatus: "blocked" | "confirmed" | "dev-bypass";
+  bondStatus: BondStatus;
+  bond?: BondRecord;
   usedForPublish: boolean;
   aiRequests: number;
 };
+
+export type { CapabilityRecord };
 
 type RateLimitRecord = {
   type: "rate-limit";
@@ -121,8 +124,38 @@ export async function getCapability(token: string | undefined) {
 export async function requireBondedCapability(token: string | undefined) {
   const record = await getCapability(token);
   if (!record) return { error: "invalid" as const };
-  if (record.bondStatus === "blocked") return { error: "bond-blocked" as const };
+  if (record.bondStatus !== "confirmed" && record.bondStatus !== "dev-bypass") {
+    return { error: "bond-blocked" as const };
+  }
   return { record };
+}
+
+/** Bond bookkeeping. The token is never stored; the record is found by its HMAC key. */
+export async function setBondState(token: string, bondStatus: BondStatus, bond: BondRecord | undefined) {
+  const key = capabilityKey(token);
+  const record = await store().get(key);
+  if (!record || record.type !== "capability") return null;
+  record.bondStatus = bondStatus;
+  record.bond = bond;
+  await store().put(key, record);
+  return record;
+}
+
+/** Live capability records with their store keys, for uniqueness checks and sweeps. */
+export async function listCapabilityRecords(): Promise<{ key: string; record: CapabilityRecord }[]> {
+  const out: { key: string; record: CapabilityRecord }[] = [];
+  for (const [key, record] of await store().entries("cap:")) {
+    if (record.type === "capability" && record.expiresAt > Date.now()) out.push({ key, record: record as CapabilityRecord });
+  }
+  return out;
+}
+
+export async function updateCapabilityByKey(key: string, patch: Partial<CapabilityRecord>) {
+  const record = await store().get(key);
+  if (!record || record.type !== "capability") return null;
+  Object.assign(record, patch);
+  await store().put(key, record);
+  return record;
 }
 
 export async function recordAiRequest(token: string) {
@@ -182,7 +215,7 @@ export async function recoverCapability(recoveryCode: string) {
       const token = randomToken();
       await store().remove(key);
       await store().put(capabilityKey(token), record);
-      return { token, expiresAt: record.expiresAt, bondStatus: record.bondStatus };
+      return { token, expiresAt: record.expiresAt, bondStatus: record.bondStatus, bond: record.bond };
     }
   }
   return null;

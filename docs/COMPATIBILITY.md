@@ -72,20 +72,31 @@ What this establishes:
 
 The pool charges 2 STRK per private operation on Sepolia. A private 1 STRK bond would cost the source at least 2 STRK in pool fees to place and the operator at least 2 STRK to refund, so the source would pay more in unavoidable fees than the bond itself. This contradicts the product rule that the source pays only unavoidable network transaction fees, and the fee must be reconsidered before the private bond is designed.
 
-## Anonymous bonded interview: BLOCKED
+## Anonymous bonded interview: BUILT, live proof pending
 
-The requirement is a 1 STRK Sepolia bond whose payment and refund cannot be linked to the source. What was verified and what was not:
+Design (2026-09-29, `src/lib/bond.ts`, `src/lib/privacy-sdk.ts`, `src/components/BondGate.tsx`):
+
+- The source pays the bond as a STRK20 **private transfer** from their own privacy-enabled wallet (Wallet API `strk20InvokeTransaction`, transfer action) to the treasury `0x05f34969286cdc0bca4b2d0589418ad825faebea8c02497f89fd8599b5690bb7`. The amount is 1 STRK plus a per-session dust value (1 to 10^9 fri) that is unique among live sessions. Amounts inside the pool are encrypted, so the dust is the session binding and never appears in a public event.
+- The server holds the treasury's keys and the privacy SDK (`@starkware-libs/starknet-privacy-sdk` 0.14.3-rc.8, built from the `starkware-libs/starknet-privacy` source at commit b40bf10 because the GitHub Packages registry needs a `read:packages` token). It confirms a bond by `discoverNotes` for the treasury at `head - 10` and matching a note with the session's exact amount (`POST /api/bond/status`, polled by the bond page). No chain data about the source is read.
+- Refund is a private transfer of the same amount from the treasury to the recipient the source typed on the bond page (defaults to the connected account; must be a registered pool user, checked with `discoverRequirement`). Triggered by `POST /api/bond/refund`, and by a sweeper for confirmed sessions within 15 minutes of expiry. The refund transaction is submitted by the pool's relayer, so no public leg names either party.
+- Fee floor (PATRON convention): quotes are refused when the live `get_fee_amount` reaches `BOND_POOL_FEE_CAP_FRI` (default 2.5 STRK). The bond page shows bond, pool fee, total, and refund before the wallet prompt.
+- Services: `PROVING_SERVICE_URL=https://transaction-prover.alpha-sepolia.sw-dev.io`, `INDEXER_URL=https://discovery-service.alpha-sepolia.sw-dev.io` (the official Sepolia services used by hackathon projects such as XENIA).
+
+Cost on Sepolia today: the source spends 1 STRK + 2 STRK pool fee; the treasury spends 2 STRK on the refund and returns 1 STRK. The spec's "source pays only network fees" is not met because of the pool fee; the page says so.
 
 | Requirement | Status | Evidence or missing dependency |
 | --- | --- | --- |
 | A live Sepolia pool | Verified | class hash above |
-| Wallet API 0.10.3 on Sepolia in a browser wallet | Not verified | No wallet was installed or tested here. The strk20-wallet-api skill says to test with the Ready extension on a public network and that Xverse support was in progress as of 2026-08-16. Must be re-verified on the day of testing. |
-| An admission receipt the server can verify without learning the payer | Not designed or verified | The pool's private transfer produces no public event naming the sender, but it also produces nothing the server can verify as "paid for session X" without either the recipient viewing key (which the operator would hold, linking nothing, but proving nothing session-specific) or an escrow helper contract called through `privacy_invoke` with a session commitment. The escrow helper pattern exists in the strk20-anonymizer-contracts skill as an unofficial, unaudited example. |
-| Unlinkable refund | Not verified | A private transfer back requires the source to be a registered pool user and to supply a recipient that is not linkable to the deposit that funded the bond. The skill's privacy doctrine states that shielding must happen in a separate, earlier transaction. Whether Sepolia testers will have pre-shielded balances is a UX assumption, not a fact. |
-| Two-wallet linkage test with RPC and explorer inspection | Not run | Needs two funded Sepolia wallets and a privacy-enabled wallet extension. |
-| IP address and timing analysis | Not run | Even with perfect onchain unlinkability, the server sees the source's IP at verification, interview, and bond-confirmation time. Mitigations (Tor onion service, a separate bond-confirmation origin, delayed confirmation windows) are not implemented. |
+| Session-bound admission without a payer address | Built, unit tested | 13 tests in `tests/bond.test.ts` with the SDK mocked: unique amounts, exact-amount note matching, no confirmation from a wrong amount, refund once, unregistered recipient refused, sweeper |
+| Treasury registered and funded | Not yet | `0x05f349...0bb7` is not deployed, holds 0 STRK, has no pool viewing key. Run `scripts/bond-setup.mts` with `BOND_TREASURY_PRIVATE_KEY` and `BOND_VIEWING_KEY` after funding it from the faucet; it registers and can shield refund liquidity (`--shield 5`) |
+| Wallet API 0.10.3 on Sepolia in a browser wallet | Not verified | The bond page has a "Check wallet" probe that prints the Wallet API versions and STRK20 support; run it with Ready on Sepolia |
+| Live bond and refund | Not run | Needs the treasury setup above plus a wallet with shielded STRK |
+| Two-wallet linkage test | Script ready, not run | `scripts/bond-linkage-check.mts --from <block> --to <block> --wallets 0xA,0xB` pulls every pool event in the window and reports any event or sender naming either wallet; paste the JSON into docs/TEST_REPORT.md |
+| IP address and timing analysis | Not run | The server still sees the source's IP at verification, bond confirmation and interview time. Not mitigated in this build. |
 
-Decision: the server refuses every bond receipt (`POST /api/bond` returns 503) and the UI shows the blocked state with this list. A public ERC-20 transfer is never accepted as a substitute. The only way to run the interview locally is `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true`, which is refused when `NODE_ENV=production` and which the UI labels as making no anonymity claim.
+What the operator learns: the refund recipient address (a pool identity the source chose) and the timing of the note. What the chain shows: pool-internal events only. Until the live rows above are filled in, `/api/capabilities` reports the bond as configured but keeps the remaining proofs in `missing`.
+
+Without the `BOND_*` environment the server behaves as before: `POST /api/bond` returns 503 with the missing list, and a public ERC-20 transfer is never accepted as a substitute. `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` remains a development-only bypass refused in production.
 
 ## Encrypted tips through the pool: BLOCKED
 

@@ -50,7 +50,32 @@ export interface PublishResult {
   explorerUrl: string;
 }
 
-export type BondStatus = "blocked" | "confirmed" | "dev-bypass";
+export type BondStatus = "blocked" | "quoted" | "confirmed" | "refunded" | "dev-bypass";
+
+export interface BondRecord {
+  /** exact amount in fri the source must transfer privately: 1 STRK plus a per-session dust value */
+  expectedAmountFri: string;
+  /** pool address that receives the refund; supplied by the source, must be a registered pool user */
+  recipient: string;
+  quotedAt: number;
+  noteId?: string;
+  confirmedAt?: number;
+  refundTxHash?: string;
+  refundedAt?: number;
+}
+
+export interface BondQuote {
+  status: BondStatus;
+  token: "STRK";
+  tokenAddress: string;
+  treasury: string;
+  bondFri: string;
+  expectedAmountFri: string;
+  poolFeeFri: string;
+  totalFri: string;
+  recipient: string;
+  network: "SN_SEPOLIA";
+}
 
 export interface CapabilityStatus {
   configured: boolean;
