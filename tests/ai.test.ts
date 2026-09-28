@@ -114,7 +114,8 @@ describe("OpenRouter backend", () => {
     const info = aiInfo();
     expect(info.provider).toBe("openrouter");
     expect(info.external).toBe(true);
-    expect(info.disclosure).toMatch(/OpenRouter/);
+    expect(info.disclosure).toMatch(/OpenRouter to Phala/);
+    expect(info.disclosure).toMatch(/not on evidence this app verified/);
     delete process.env.OPENROUTER_API_KEY;
     delete process.env.AI_PROVIDER;
   });

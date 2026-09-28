@@ -43,9 +43,11 @@ export function aiInfo(): AiInfo {
       provider,
       model: openrouter.openrouterModel(),
       external: true,
-      label: `open model ${openrouter.openrouterModel()} hosted through OpenRouter`,
+      label: `open model ${openrouter.openrouterModel()} in a ${openrouter.openrouterProvider() === "phala" ? "Phala GPU TEE" : openrouter.openrouterProvider() + " host"} via OpenRouter`,
       disclosure:
-        `Interview messages and the draft article are sent to OpenRouter, which forwards them to a hosting company running the open model ${openrouter.openrouterModel()}. Those companies receive the full text, and the server operator can read it too: this is not confidential compute.`,
+        openrouter.openrouterProvider() === "phala"
+          ? `Interview messages and the draft article are sent through OpenRouter to Phala, which runs the open model ${openrouter.openrouterModel()} inside a GPU trusted execution environment. OpenRouter sees the text in transit and does not pass Phala's attestation or signed receipts to this app, so the TEE claim rests on routing, not on evidence this app verified. The server operator can read the text too.`
+          : `Interview messages and the draft article are sent to OpenRouter, which forwards them to ${openrouter.openrouterProvider()} running the open model ${openrouter.openrouterModel()}. Those companies receive the full text, and the server operator can read it too: this is not confidential compute.`,
     };
   }
   if (provider === "gemini") {
