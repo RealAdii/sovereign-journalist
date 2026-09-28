@@ -167,6 +167,20 @@ Caveat observed: the 7B model wrote "the source, who works in finance" from a tr
 
 The user completed a verification in the embedded Reclaim portal with their own app and provider (`f9f383fd-32d9-4c54-942f-5e9fda349762`, template version 2.0.1). Reclaim's session endpoint reported `PROOF_SUBMITTED` with one proof whose context carried `contextAddress`, `contextMessage`, `reclaimSessionId`, `isPortalProof`, an attestation nonce, and `extractedParameters: { email }`. Running the server verifier against that proof with the stored challenge and provider version returned VERIFIED with parameter name `email` only. Because the SDK's browser-side `onSuccess` did not fire, completion is now server-driven (`POST /api/verify/status`), covered by two route tests: pending without a proof, issued once with a proof, 410 afterwards; 409 on a Reclaim error state; 401 then 410 on a proof that fails verification.
 
+## Hosted open model inside a GPU TEE via OpenRouter (2026-09-29, 00:05)
+
+Backend: OpenRouter pinned to provider `phala` (`provider: { only: ["phala"], allow_fallbacks: false }`), model `deepseek/deepseek-v3.2`, driven through the real app routes with a dev capability.
+
+| Step | Result |
+| --- | --- |
+| `z-ai/glm-5.3-flash` on Phala | rejected as the default: the endpoint forces reasoning on ("Reasoning is mandatory for this endpoint and cannot be disabled") and a 700-token budget was spent entirely on reasoning with `content: null`. Interview turn returned 0 bytes, draft timed out at 300 s. |
+| `deepseek/deepseek-v3.2` on Phala, direct call | 2.9 s, normal content |
+| `qwen/qwen3.8-27b` on Phala, direct call | 1.3 s, normal content |
+| Interview turn through `/api/interview` (DeepSeek V3.2) | HTTP 200, first token 3.0 s, complete in 6.9 s, 402 bytes, one follow-up question |
+| Draft through `/api/generate` (6-message transcript) | HTTP 200 in 101 s, 3038 body characters, valid JSON, no dashes, but the two required sections were missing (fixed in WP1 by validating and appending them) |
+
+What this proves and what it does not: OpenRouter reports `provider: "Phala"` on every response, and Phala's endpoints run models in GPU TEEs, but OpenRouter does not forward Phala's attestation report or signed receipts, so this app cannot independently verify the TEE claim on this path. The UI says exactly that. The directly attested path needs a Phala Cloud API key (WP1).
+
 ## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
 
 These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.
