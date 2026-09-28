@@ -1,54 +1,80 @@
+import { ReclaimProofRequest, verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
 import type { VerifiedCredential } from "./types";
 
-export const RECLAIM_APP_ID = process.env.NEXT_PUBLIC_RECLAIM_APP_ID!;
-export const RECLAIM_APP_SECRET = process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET!;
-export const RECLAIM_PROVIDER_ID = process.env.NEXT_PUBLIC_RECLAIM_PROVIDER_ID!;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseProofData(proofs: any[]): Record<string, string> {
-  if (!proofs || proofs.length === 0) return {};
-
-  const proof = proofs[0];
-
-  if (proof.extractedParameterValues) {
-    return typeof proof.extractedParameterValues === "string"
-      ? JSON.parse(proof.extractedParameterValues)
-      : proof.extractedParameterValues;
-  }
-
-  if (proof.claimData?.context) {
-    const context =
-      typeof proof.claimData.context === "string"
-        ? JSON.parse(proof.claimData.context)
-        : proof.claimData.context;
-    return context.extractedParameters || context;
-  }
-
-  if (proof.claimData?.parameters) {
-    return typeof proof.claimData.parameters === "string"
-      ? JSON.parse(proof.claimData.parameters)
-      : proof.claimData.parameters;
-  }
-
-  if (proof.publicData) {
-    return typeof proof.publicData === "string"
-      ? JSON.parse(proof.publicData)
-      : proof.publicData;
-  }
-
-  return {};
+function required(name: "RECLAIM_APP_ID" | "RECLAIM_APP_SECRET" | "RECLAIM_PROVIDER_ID") {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not configured`);
+  return value;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function extractCredential(proofs: any[]): VerifiedCredential {
-  const parameters = parseProofData(proofs);
-  const proof = proofs?.[0];
-  const provider =
-    proof?.claimData?.provider || proof?.provider || "unknown";
+export async function createReclaimRequest(verificationId: string, challenge: string) {
+  const request = await ReclaimProofRequest.init(
+    required("RECLAIM_APP_ID"),
+    required("RECLAIM_APP_SECRET"),
+    required("RECLAIM_PROVIDER_ID"),
+    { log: false, acceptAiProviders: false },
+  );
+  request.setContext(verificationId, challenge);
+  return {
+    requestJson: request.toJsonString(),
+    reclaimSessionId: request.getSessionId(),
+  };
+}
+
+function parseContext(proof: Proof) {
+  const raw = proof.claimData?.context;
+  if (!raw) return {} as Record<string, unknown>;
+  return typeof raw === "string" ? JSON.parse(raw) : raw;
+}
+
+function extractedParameters(proof: Proof): Record<string, string> {
+  const context = parseContext(proof);
+  const raw = (context.extractedParameters || proof.extractedParameterValues || {}) as
+    | string
+    | Record<string, unknown>;
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, value]) => [key, String(value)]),
+  );
+}
+
+export async function verifyReclaimProofs(
+  proofs: Proof[],
+  expectedVerificationId: string,
+  expectedChallenge: string,
+  expectedSessionId: string,
+): Promise<VerifiedCredential> {
+  if (!Array.isArray(proofs) || proofs.length !== 1) {
+    throw new Error("Exactly one proof is required");
+  }
+  const proof = proofs[0];
+  const valid = await verifyProof(proof, false);
+  if (!valid) throw new Error("Proof signature verification failed");
+
+  const provider = proof.claimData?.provider || "";
+  if (provider !== required("RECLAIM_PROVIDER_ID")) {
+    throw new Error("Proof provider does not match the requested provider");
+  }
+  const context = parseContext(proof);
+  if (
+    String(context.address || "") !== expectedVerificationId ||
+    String(context.message || "") !== expectedChallenge
+  ) {
+    throw new Error("Proof is not bound to this verification request");
+  }
+  if (context.sessionId && String(context.sessionId) !== expectedSessionId) {
+    throw new Error("Proof session does not match the initiated session");
+  }
 
   return {
     provider,
-    parameters,
+    parameters: extractedParameters(proof),
     verifiedAt: new Date().toISOString(),
   };
+}
+
+export function reclaimConfigured() {
+  return Boolean(
+    process.env.RECLAIM_APP_ID && process.env.RECLAIM_APP_SECRET && process.env.RECLAIM_PROVIDER_ID,
+  );
 }

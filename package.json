@@ -6,16 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:contracts": "cd contracts && snforge test",
+    "check:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/check-sepolia.mts",
+    "build:contracts": "cd contracts && scarb build",
+    "deploy:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/deploy-sepolia.mts",
+    "benchmark:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/benchmark-articles.mts",
+    "readback:sepolia": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/readback-verify.mts",
+    "check:dashes": "node scripts/check-dashes.mjs"
   },
   "dependencies": {
     "@reclaimprotocol/js-sdk": "^4.12.0",
+    "@starknet-io/get-starknet-discovery": "6.0.3",
+    "@starknet-io/get-starknet-wallet-standard": "6.0.3",
+    "@starknet-io/types-js": "0.10.3",
     "@tailwindcss/typography": "^0.5.19",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "starknet": "10.4.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -25,6 +39,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

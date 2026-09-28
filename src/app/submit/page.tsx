@@ -1,109 +1,82 @@
 import Link from "next/link";
 import Header from "@/components/Header";
+import Notice from "@/components/Notice";
+import { capabilitiesReport } from "@/lib/capabilities";
 
-export default function SubmitPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SubmitPage() {
+  const caps = await capabilitiesReport();
   return (
     <>
       <Header />
-      <main className="min-h-screen flex items-center justify-center px-6 pt-14 relative overflow-hidden">
-        {/* Background grid */}
-        <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" />
-        <div
-          className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(0,255,136,0.06) 0%, transparent 70%)",
-          }}
-        />
-
-        <div className="max-w-2xl text-center relative z-10 animate-fade-in">
-          {/* Status tag */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-neon-green/5 border border-neon-green/20 rounded font-mono text-[11px] font-semibold text-neon-green uppercase tracking-[2px] mb-6">
-            <div className="w-1.5 h-1.5 bg-neon-green rounded-full shadow-[0_0_6px_#00FF88] animate-pulse-glow" />
-            anonymous & verified
+      <main className="min-h-screen px-4 sm:px-6 pt-20 pb-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" aria-hidden="true" />
+        <div className="max-w-2xl mx-auto relative z-10 animate-fade-in">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-warning/5 border border-warning/30 rounded font-mono text-[11px] font-semibold text-warning uppercase tracking-[2px] mb-6">
+              Starknet Sepolia testnet
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-bold leading-tight tracking-tight mb-4 text-text-primary">
+              Report something, on the record
+            </h1>
+            <p className="text-base text-text-secondary max-w-lg mx-auto leading-relaxed">
+              Prove a credential, answer a journalist&apos;s questions, approve the article yourself, and
+              have the full text written to Starknet where anyone can read it.
+            </p>
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-bold leading-tight tracking-tight mb-6 text-text-primary">
-            Share Your Story{" "}
-            <span className="text-neon-green glow-text">Safely</span>
-          </h1>
-
-          <p className="text-lg text-text-secondary mb-12 max-w-lg mx-auto leading-relaxed">
-            Prove your credentials without revealing your identity. An AI
-            journalist will interview you, and your story will be published
-            permanently to IPFS.
-          </p>
-
-          {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-            <div className="card text-left">
-              <div className="text-neon-green font-mono text-xs mb-2">
-                01_verify
-              </div>
-              <h3 className="text-sm font-semibold text-text-primary mb-1">
-                Prove Credentials
-              </h3>
-              <p className="text-xs text-text-muted leading-relaxed">
-                Use zkTLS to cryptographically verify your employment,
-                membership, or identity — without revealing who you are.
-              </p>
-            </div>
-
-            <div className="card text-left">
-              <div className="text-neon-cyan font-mono text-xs mb-2">
-                02_interview
-              </div>
-              <h3 className="text-sm font-semibold text-text-primary mb-1">
-                AI Interview
-              </h3>
-              <p className="text-xs text-text-muted leading-relaxed">
-                An AI journalist asks probing questions to capture the full
-                story. No human sees the raw conversation.
-              </p>
-            </div>
-
-            <div className="card text-left">
-              <div className="text-neon-green font-mono text-xs mb-2">
-                03_publish
-              </div>
-              <h3 className="text-sm font-semibold text-text-primary mb-1">
-                Permanent Record
-              </h3>
-              <p className="text-xs text-text-muted leading-relaxed">
-                Your story is transformed into an article and pinned to IPFS.
-                Uncensorable. Immutable. Forever.
-              </p>
-            </div>
-          </div>
-
-          {/* Privacy notice */}
-          <div className="card text-left mb-8 border-neon-green/10">
-            <div className="font-mono text-[11px] text-text-muted mb-2">
-              {"// privacy_guarantees"}
-            </div>
-            <ul className="text-xs text-text-secondary space-y-1.5">
-              <li>
-                <span className="text-neon-green mr-2">&#10003;</span>
-                Zero-knowledge proofs — we never see your login credentials
-              </li>
-              <li>
-                <span className="text-neon-green mr-2">&#10003;</span>
-                No database — interview data exists only in your browser
-              </li>
-              <li>
-                <span className="text-neon-green mr-2">&#10003;</span>
-                Auto-purge — all session data deleted after publishing
-              </li>
-              <li>
-                <span className="text-neon-green mr-2">&#10003;</span>
-                IPFS storage — no single point of censorship
-              </li>
+          <section aria-labelledby="limits" className="card text-left mb-6">
+            <h2 id="limits" className="font-mono text-[11px] text-text-muted uppercase tracking-wider mb-3">privacy limits and costs, read first</h2>
+            <ul className="text-xs text-text-secondary space-y-2 list-disc pl-5">
+              <li><strong className="text-text-primary">Reclaim proves a login, not a claim.</strong> The proof can disclose provider fields such as an employer or an email, depending on the template. We show you exactly what was disclosed.</li>
+              <li><strong className="text-text-primary">Google receives the interview.</strong> Messages and the draft go to the Gemini API. No confidential compute or attestation is verified in this build.</li>
+              <li><strong className="text-text-primary">The article is public forever.</strong> Full title, subtitle, and body are stored in a Sepolia contract. Only what you approve is written. Nothing else from the session goes onchain.</li>
+              <li><strong className="text-text-primary">You do not pay to publish.</strong> The server&apos;s publisher account submits the transaction, so your wallet is never involved. The fee is shown before you confirm.</li>
+              <li><strong className="text-text-primary">Bond: 1 STRK on Sepolia, refundable.</strong> Currently blocked, see below. We do not accept a public transfer in its place.</li>
+              <li><strong className="text-text-primary">Network metadata.</strong> Your IP address reaches this server and Reclaim like any website. Use a network you trust.</li>
             </ul>
+          </section>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="card text-left flex flex-col">
+              <div className="text-neon-green font-mono text-xs mb-2">path_a: interview and publish</div>
+              <ol className="text-xs text-text-muted leading-relaxed space-y-1 list-decimal pl-4 mb-4">
+                <li>Prove a credential with Reclaim</li>
+                <li>Refundable 1 STRK bond (blocked)</li>
+                <li>AI interview, external processing disclosed</li>
+                <li>Edit and approve the article, see the fee</li>
+                <li>Publish to Starknet Sepolia and get a read-back proof</li>
+              </ol>
+              <div className="mt-auto">
+                <Link href="/submit/verify" className="btn-primary inline-block !text-xs w-full text-center">Start with verification</Link>
+              </div>
+            </div>
+            <div className="card text-left flex flex-col">
+              <div className="text-neon-cyan font-mono text-xs mb-2">path_b: encrypted tip, no AI</div>
+              <p className="text-xs text-text-muted leading-relaxed mb-4">
+                Encrypt a message to the editorial key on your device and submit the ciphertext through
+                the STRK20 privacy pool so that no wallet or identity is linked to it.
+              </p>
+              <div className="mt-auto">
+                <Link href="/submit/tip" className="btn-outline inline-block !text-xs w-full text-center">See status (blocked)</Link>
+              </div>
+            </div>
           </div>
 
-          <Link href="/submit/verify" className="btn-primary inline-block">
-            Begin Verification
-          </Link>
+          <div className="space-y-3 mb-6">
+            <Notice tone={caps.anonymousBond.enabled ? "warn" : "error"} title="anonymous bond">
+              {caps.anonymousBond.reason}
+            </Notice>
+            <Notice tone="error" title="encrypted tips">{caps.encryptedTips.reason}</Notice>
+            <Notice tone={caps.aiInterview.enabled ? "warn" : "error"} title="ai interview">{caps.aiInterview.reason}</Notice>
+            <Notice tone={caps.articleRegistry.enabled ? "ok" : "error"} title="starknet sepolia registry">{caps.articleRegistry.reason}</Notice>
+          </div>
+
+          <p className="text-center text-xs text-text-muted">
+            Lost your session? <Link href="/submit/recover" className="text-neon-cyan">Use your recovery code</Link>.
+            Full status at <Link href="/api/capabilities" className="text-neon-cyan">/api/capabilities</Link>.
+          </p>
         </div>
       </main>
     </>

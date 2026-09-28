@@ -1,0 +1,17 @@
+[package]
+name = "tip_inbox"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+starknet.workspace = true
+
+[dev-dependencies]
+snforge_std.workspace = true
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
+
+[scripts]
+test = "snforge test"

@@ -1,191 +1,146 @@
-import type { ChatMessage, VerifiedCredential, IPFSArticle } from "./types";
-import crypto from "crypto";
+import type { ArticleDraft, ChatMessage, VerifiedCredential } from "./types";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-const GEMINI_STREAM_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse";
+export const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`;
+
+// Data boundary: every message passed to these functions is sent to Google's
+// Generative Language API. Nothing here can hide the text from Google. The UI
+// must disclose this before the interview starts.
 
 interface GeminiContent {
   role: "user" | "model";
   parts: { text: string }[];
 }
 
-function sanitizeCredential(credential: VerifiedCredential): string {
-  // Only expose non-PII fields. Strip emails, names, IDs.
-  const safeFields: Record<string, string> = {};
-  const piiPatterns = /email|name|id$|phone|address|ssn|dob|birth/i;
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export function geminiConfigured() {
+  return Boolean(process.env.GEMINI_API_KEY);
+}
 
-  for (const [key, value] of Object.entries(credential.parameters)) {
-    if (piiPatterns.test(key)) continue;
-    if (emailPattern.test(value)) continue;
-    safeFields[key] = value;
-  }
+function apiKey() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not configured");
+  return key;
+}
 
-  if (Object.keys(safeFields).length > 0) {
-    return Object.entries(safeFields)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(", ");
-  }
-
-  return credential.provider;
+// Only the provider name reaches the model. Credential parameter values may
+// contain identifying data, so they are never included in prompts.
+function credentialSummary(credential: VerifiedCredential) {
+  return `provider ${credential.provider}, fields disclosed: ${Object.keys(credential.parameters).join(", ") || "none"}`;
 }
 
 function buildInterviewSystemPrompt(credential: VerifiedCredential): string {
-  const safeCredInfo = sanitizeCredential(credential);
+  return `You are an investigative journalist conducting a structured interview with a source.
 
-  return `You are the Sovereign Journalist — an autonomous AI investigative journalist.
-
-You are speaking with a verified source who has proven their credentials via zkTLS (zero-knowledge Transport Layer Security) through Reclaim Protocol. Their verified credential type: ${safeCredInfo} (provider: ${credential.provider}).
-Their identity is cryptographically hidden from you — you do not and cannot know who they are.
+The source has proven a credential through Reclaim Protocol (${credentialSummary(credential)}). The credential proves that the source could log in to the provider; it does not prove that any claim they make is true.
 
 Your job:
-1. Understand what they want to report
-2. Ask specific, probing follow-up questions (one at a time)
-3. Request any evidence they can share (documents, screenshots, data)
-4. Identify claims that could be verified against public information
-5. After 5-8 exchanges, summarize findings and confirm accuracy with the source
+1. Understand what the source wants to report.
+2. Ask specific follow-up questions, one at a time.
+3. Ask what evidence exists and how it could be corroborated from public information, without asking the source to upload files.
+4. After five to eight exchanges, summarize the account and confirm it with the source.
 
 Rules:
-- NEVER ask for their name, email, employee ID, or any identifying information
-- NEVER try to narrow down their identity through indirect questions
-- Be professional, empathetic, and thorough
-- Ask ONE question at a time
-- Keep responses concise (2-4 paragraphs max)
+- Never ask for the source's name, email, employee ID, location, team, or any other identifying detail.
+- Never try to narrow the source's identity through indirect questions.
+- If the source volunteers identifying detail, remind them that it may end up in a public article and that they can leave it out.
+- Be professional and careful. Ask one question at a time. Keep responses to two to four short paragraphs.
+- Do not use em dashes or en dashes in your writing.
 
-Start by acknowledging their verified credential and asking what story they want to share.`;
+Begin by acknowledging that the credential was proven and asking what the source wants to report.`;
 }
 
-function buildArticlePrompt(
-  messages: ChatMessage[],
-  credential: VerifiedCredential
-): string {
+function buildArticlePrompt(messages: ChatMessage[], credential: VerifiedCredential): string {
   const transcript = messages
     .map((m) => `${m.role === "user" ? "SOURCE" : "JOURNALIST"}: ${m.content}`)
     .join("\n\n");
 
-  const safeCredInfo = sanitizeCredential(credential);
-
-  return `Based on this interview transcript between an AI journalist and an anonymous verified source, write a professional investigative article.
-
-SOURCE CREDENTIAL (verified via zkTLS): ${safeCredInfo} (provider: ${credential.provider})
+  return `Write a draft news article from this interview transcript between a journalist and a source whose credential was proven through Reclaim Protocol (${credentialSummary(credential)}).
 
 TRANSCRIPT:
 ${transcript}
 
-Generate a JSON response with this exact structure:
+Return JSON with exactly this structure and nothing else:
 {
-  "title": "Article headline (compelling, journalistic)",
-  "subtitle": "2-3 sentence summary for article cards",
-  "body": "Full article in markdown format. Professional journalism style. Reference the source's verified credential without revealing identity. Use sections with ## headings.",
-  "confidenceScore": <number 1-100 based on specificity and consistency of claims>,
-  "confidenceReason": "2-3 sentences explaining why this confidence level. Reference specific evidence or lack thereof.",
-  "tags": ["tag1", "tag2", "tag3"]
+  "title": "Headline, at most 120 characters",
+  "subtitle": "Two sentence summary, at most 300 characters",
+  "body": "Full article in Markdown with ## section headings, at most 12000 characters"
 }
 
 Rules:
-- Write in third person ("A verified employee at..." not "I")
-- Include a note about zkTLS verification methodology
-- Distinguish between verified claims and unverified allegations
-- The confidence score should reflect how specific, consistent, and verifiable the claims are
-- Keep the article factual and balanced
-- Output ONLY valid JSON, no markdown code fences`;
+- Write in third person.
+- Every claim from the source is an allegation reported by the source. Label it that way. Do not describe any claim as verified, confirmed, or corroborated unless the transcript cites a public record that the reader can check.
+- Include a short section titled "What has been proven" that states only that the source proved the credential, and a section titled "What has not been independently corroborated".
+- Do not include any detail that could identify the source. Remove names, dates of specific personal events, team sizes, office locations, and unique phrasing from documents.
+- Do not include a confidence score or any numeric rating.
+- Do not use em dashes or en dashes.
+- Output only valid JSON, no Markdown code fences.`;
 }
 
-async function callGemini(
-  contents: GeminiContent[],
-  systemInstruction?: string
-): Promise<string> {
+async function callGemini(contents: GeminiContent[], systemInstruction?: string): Promise<string> {
   const body: Record<string, unknown> = {
     contents,
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 4096,
-    },
+    generationConfig: { temperature: 0.6, maxOutputTokens: 8192, responseMimeType: "application/json" },
   };
+  if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
 
-  if (systemInstruction) {
-    body.systemInstruction = {
-      parts: [{ text: systemInstruction }],
-    };
-  }
-
-  const res = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+  const res = await fetch(GEMINI_API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey() },
     body: JSON.stringify(body),
   });
-
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${errorText}`);
+    throw new Error(`The AI provider returned status ${res.status}`);
   }
-
   const data = await res.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
 export async function conductInterviewStream(
   messages: ChatMessage[],
-  credential: VerifiedCredential
+  credential: VerifiedCredential,
 ): Promise<ReadableStream<Uint8Array>> {
-  const systemPrompt = buildInterviewSystemPrompt(credential);
-
   const contents: GeminiContent[] = messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
 
-  const body = {
-    contents,
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
-  };
-
-  const res = await fetch(`${GEMINI_STREAM_URL}&key=${GEMINI_API_KEY}`, {
+  const res = await fetch(GEMINI_STREAM_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey() },
+    body: JSON.stringify({
+      contents,
+      systemInstruction: { parts: [{ text: buildInterviewSystemPrompt(credential) }] },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+    }),
   });
-
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${errorText}`);
+    throw new Error(`The AI provider returned status ${res.status}`);
   }
 
   const encoder = new TextEncoder();
-
   return new ReadableStream({
     async start(controller) {
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";
-
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const json = line.slice(6).trim();
-              if (!json) continue;
-              try {
-                const parsed = JSON.parse(json);
-                const text =
-                  parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                  controller.enqueue(encoder.encode(text));
-                }
-              } catch {
-                // skip malformed chunks
-              }
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (!json) continue;
+            try {
+              const parsed = JSON.parse(json);
+              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) controller.enqueue(encoder.encode(text));
+            } catch {
+              // skip malformed chunks
             }
           }
         }
@@ -198,44 +153,28 @@ export async function conductInterviewStream(
   });
 }
 
+export function parseArticleResponse(raw: string): ArticleDraft {
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+  const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  const title = String(parsed.title ?? "").trim();
+  const body = String(parsed.body ?? "").trim();
+  if (!title || !body) throw new Error("The AI draft was missing a title or body");
+  return {
+    version: 1,
+    title,
+    subtitle: String(parsed.subtitle ?? "").trim(),
+    body,
+    sourceStatus: "credential-proven",
+    allegationStatus: "reported",
+  };
+}
+
 export async function generateArticle(
   messages: ChatMessage[],
-  credential: VerifiedCredential
-): Promise<IPFSArticle> {
-  const prompt = buildArticlePrompt(messages, credential);
+  credential: VerifiedCredential,
+): Promise<ArticleDraft> {
   const response = await callGemini([
-    { role: "user", parts: [{ text: prompt }] },
+    { role: "user", parts: [{ text: buildArticlePrompt(messages, credential) }] },
   ]);
-
-  const cleaned = response.replace(/```json\n?|\n?```/g, "").trim();
-  const parsed = JSON.parse(cleaned);
-
-  const interviewHash = crypto
-    .createHash("sha256")
-    .update(JSON.stringify(messages))
-    .digest("hex")
-    .slice(0, 16);
-
-  return {
-    version: "1.0",
-    publishedAt: new Date().toISOString(),
-    article: {
-      title: parsed.title,
-      subtitle: parsed.subtitle || parsed.summary || "",
-      body: parsed.body,
-      confidence: parsed.confidenceScore,
-      confidenceReason: parsed.confidenceReason || "",
-    },
-    verification: {
-      sourceCredential: `Verified source via ${credential.provider}`,
-      proofHash: interviewHash,
-      verificationMethod: "zkTLS (Reclaim Protocol)",
-      identityKnown: false,
-    },
-    metadata: {
-      agentModel: "gemini-2.5-flash",
-      interviewTurns: messages.length,
-      tags: parsed.tags || [],
-    },
-  };
+  return parseArticleResponse(response);
 }

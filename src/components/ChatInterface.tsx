@@ -2,104 +2,92 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { ChatMessage as ChatMessageType, IPFSArticle } from "@/lib/types";
+import type { ArticleDraft, ChatMessage as ChatMessageType, PublishEstimate, PublishResult } from "@/lib/types";
+import { clearSession, loadSession, type ClientSession } from "@/lib/client-session";
 import ChatMessage from "./ChatMessage";
-import ArticlePreview from "./ArticlePreview";
+import ArticleEditor from "./ArticleEditor";
 import PublishConfirmation from "./PublishConfirmation";
+import Notice from "./Notice";
 
-const MIN_MESSAGES_TO_PUBLISH = 6;
-const RETRY_DELAY = 15000;
+const MIN_MESSAGES_TO_DRAFT = 6;
+
+async function readError(res: Response, fallback: string) {
+  const data = await res.json().catch(() => ({}));
+  return data.error || `${fallback} (${res.status})`;
+}
 
 export default function ChatInterface() {
   const router = useRouter();
+  const [session, setSession] = useState<ClientSession | null | undefined>(undefined);
+  const [disclosed, setDisclosed] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
-  const [articlePreview, setArticlePreview] = useState<IPFSArticle | null>(null);
-  const [publishing, setPublishing] = useState(false);
-  const [generatingPreview, setGeneratingPreview] = useState(false);
+  const [draft, setDraft] = useState<ArticleDraft | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [publishedCid, setPublishedCid] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [published, setPublished] = useState<PublishResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const sessionToken =
-    typeof window !== "undefined"
-      ? sessionStorage.getItem("sj_session")
-      : null;
+  useEffect(() => {
+    const loaded = loadSession();
+    setSession(loaded);
+    if (!loaded) router.replace("/submit/verify");
+    else if (loaded.bondStatus === "blocked") router.replace("/submit/bond");
+  }, [router]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Auto-focus input
   useEffect(() => {
-    if (!loading) inputRef.current?.focus();
-  }, [loading]);
+    if (!loading && disclosed) inputRef.current?.focus();
+  }, [loading, disclosed]);
 
-  // Redirect if no session
-  useEffect(() => {
-    if (typeof window !== "undefined" && !sessionStorage.getItem("sj_session")) {
-      router.push("/submit/verify");
-    }
-  }, [router]);
+  const token = session?.token;
 
-  const sendMessage = async (retries = 2) => {
-    if (!input.trim() || loading || !sessionToken) return;
-
+  const sendMessage = async () => {
+    if (!input.trim() || loading || streaming || !token) return;
     const userMessage: ChatMessageType = { role: "user", content: input.trim() };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
-    setStreaming(false);
     setError(null);
 
     try {
       const res = await fetch("/api/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, sessionToken }),
+        body: JSON.stringify({ messages: newMessages, token }),
       });
-
-      if (res.status === 429 && retries > 0) {
-        setError("Rate limited — retrying in 15s...");
-        await new Promise((r) => setTimeout(r, RETRY_DELAY));
-        setError(null);
-        setLoading(false);
-        setInput(userMessage.content);
-        setMessages(messages);
-        return;
-      }
-
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Request failed: ${res.status}`);
+        const message = await readError(res, "The interview request failed");
+        setMessages(messages);
+        setInput(userMessage.content);
+        throw new Error(message);
       }
-
-      // Stream the response
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";
-
-      // Add placeholder assistant message
-      const withAssistant = [...newMessages, { role: "assistant" as const, content: "" }];
-      setMessages(withAssistant);
       setStreaming(true);
       setLoading(false);
-
+      setMessages([...newMessages, { role: "assistant", content: "" }]);
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
-        setMessages([
-          ...newMessages,
-          { role: "assistant", content: accumulated },
-        ]);
+        setMessages([...newMessages, { role: "assistant", content: accumulated }]);
+      }
+      if (!accumulated) {
+        setMessages(newMessages);
+        setError("The AI returned an empty reply. Send your message again or use your recovery code later.");
       }
     } catch (err) {
-      console.error("Chat error:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setLoading(false);
@@ -107,155 +95,167 @@ export default function ChatInterface() {
     }
   };
 
-  const handlePublish = async () => {
-    if (!sessionToken) return;
-    setGeneratingPreview(true);
+  const handleDraft = async () => {
+    if (!token) return;
+    setDrafting(true);
     setError(null);
-
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, sessionToken }),
+        body: JSON.stringify({ messages, token }),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to generate article");
-      }
-
-      const { article } = await res.json();
-      setArticlePreview(article);
+      if (!res.ok) throw new Error(await readError(res, "Drafting failed"));
+      const { article } = (await res.json()) as { article: ArticleDraft };
+      setDraft(article);
+      setEditorError(null);
     } catch (err) {
-      console.error("Generate error:", err);
-      setError(err instanceof Error ? err.message : "Article generation failed");
+      setError(err instanceof Error ? err.message : "Drafting failed");
     } finally {
-      setGeneratingPreview(false);
+      setDrafting(false);
     }
   };
 
-  const confirmPublish = async () => {
-    if (!articlePreview || !sessionToken) return;
-    setPublishing(true);
-    setError(null);
+  const estimate = async (article: ArticleDraft): Promise<PublishEstimate> => {
+    setBusy(true);
+    setEditorError(null);
+    try {
+      const res = await fetch("/api/publish/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ article, token }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "Fee estimation failed"));
+      return (await res.json()) as PublishEstimate;
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : "Fee estimation failed");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
 
+  const publish = async (article: ArticleDraft, est: PublishEstimate) => {
+    setBusy(true);
+    setEditorError(null);
     try {
       const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ article: articlePreview, sessionToken }),
+        body: JSON.stringify({ article, approvedDigest: est.approvedDigest, token }),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to publish to IPFS");
-      }
-
-      const { cid } = await res.json();
-
-      // Purge all source data
-      sessionStorage.removeItem("sj_session");
-      sessionStorage.removeItem("sj_credential");
+      if (!res.ok) throw new Error(await readError(res, "Publishing failed"));
+      const result = (await res.json()) as PublishResult;
+      clearSession();
       setMessages([]);
-      setArticlePreview(null);
-      setPublishedCid(cid);
+      setDraft(null);
+      setPublished(result);
     } catch (err) {
-      console.error("Publish error:", err);
-      setError(err instanceof Error ? err.message : "Publishing failed");
-      setPublishing(false);
+      setEditorError(err instanceof Error ? err.message : "Publishing failed");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const canPublish = messages.length >= MIN_MESSAGES_TO_PUBLISH;
+  const cancel = async () => {
+    if (token) await fetch("/api/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) }).catch(() => null);
+    clearSession();
+    router.push("/submit");
+  };
 
-  if (publishedCid) {
+  if (published) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)] px-6">
-        <PublishConfirmation cid={publishedCid} />
+      <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)] px-4">
+        <PublishConfirmation result={published} />
       </div>
     );
   }
 
+  if (session === undefined || !session) return null;
+
+  if (!disclosed) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-7rem)] px-4">
+        <div className="card max-w-lg w-full p-6 sm:p-8 space-y-4">
+          <div className="font-mono text-[11px] text-text-muted">{"// step_03: before the interview"}</div>
+          <h2 className="text-xl font-bold text-text-primary">Where your words go</h2>
+          <Notice tone="warn" title="external AI processing">
+            Every message you type in the interview is sent to Google&apos;s Gemini API and the draft article
+            is generated there. Google receives the full text. This server is not confidential compute
+            and its operator can also read requests. Nothing about your Reclaim credential values is sent
+            to Google, only the provider name.
+          </Notice>
+          <ul className="text-xs text-text-secondary space-y-1.5 list-disc pl-5">
+            <li>Do not include names, dates, or details that only you would know.</li>
+            <li>You will see and can edit the full article before anything is published.</li>
+            <li>Nothing is published automatically. Publication is irreversible and public.</li>
+            <li>The transcript is not stored on this server after the session ends and is never put on Starknet.</li>
+          </ul>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button onClick={() => setDisclosed(true)} className="btn-primary flex-1">
+              I understand, start the interview
+            </button>
+            <button onClick={cancel} className="btn-outline flex-1 !text-xs">
+              Decline and cancel
+            </button>
+          </div>
+          <p className="text-[11px] text-text-muted">
+            Prefer not to use an AI provider? The encrypted tip path is the alternative, but it is currently blocked on Sepolia. See the submit overview.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const canDraft = messages.length >= MIN_MESSAGES_TO_DRAFT;
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      {/* Chat header */}
-      <div className="border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
+      <div className="border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 gap-3">
         <div>
-          <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">
-            step_02: interview
-          </span>
-          <div className="text-sm text-text-secondary mt-0.5">
+          <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">step_03: interview</span>
+          <div className="text-sm text-text-secondary mt-0.5" aria-live="polite">
             {messages.length} message{messages.length !== 1 && "s"} exchanged
           </div>
         </div>
-
-        {canPublish && (
-          <button
-            onClick={handlePublish}
-            disabled={generatingPreview || loading}
-            className="btn-primary !py-2 !px-4 !text-xs disabled:opacity-50"
-          >
-            {generatingPreview
-              ? "Generating Article..."
-              : "End Interview & Publish"}
-          </button>
-        )}
+        <div className="flex gap-2">
+          <button onClick={cancel} className="btn-outline !py-2 !px-3 !text-xs">Cancel</button>
+          {canDraft && (
+            <button onClick={handleDraft} disabled={drafting || loading || streaming} className="btn-primary !py-2 !px-4 !text-xs disabled:opacity-50">
+              {drafting ? "Drafting" : "End interview and draft article"}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4" role="log" aria-live="polite">
         {messages.length === 0 && (
           <div className="text-center py-12">
-            <div className="font-mono text-[11px] text-text-muted mb-3">
-              {"// begin your testimony"}
-            </div>
+            <div className="font-mono text-[11px] text-text-muted mb-3">{"// begin"}</div>
             <p className="text-sm text-text-secondary max-w-md mx-auto">
-              Tell the AI journalist what you want to share. Your verified
-              credentials establish credibility — the journalist will ask
-              follow-up questions to capture the full story.
+              Tell the journalist what you want to report. It will ask follow-up questions. Leave out anything that could identify you.
             </p>
           </div>
         )}
-
-        {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
-        ))}
-
+        {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
         {loading && !streaming && (
           <div className="flex justify-start animate-fade-in">
             <div className="bg-bg-elevated border border-border rounded-lg px-4 py-3">
-              <div className="font-mono text-[10px] uppercase tracking-wider mb-1.5 opacity-60">
-                journalist
-              </div>
-              <div className="flex items-center gap-1 text-text-muted">
-                <span className="w-1.5 h-1.5 bg-neon-cyan rounded-full animate-pulse" />
-                <span
-                  className="w-1.5 h-1.5 bg-neon-cyan rounded-full animate-pulse"
-                  style={{ animationDelay: "0.2s" }}
-                />
-                <span
-                  className="w-1.5 h-1.5 bg-neon-cyan rounded-full animate-pulse"
-                  style={{ animationDelay: "0.4s" }}
-                />
-              </div>
+              <div className="font-mono text-[10px] uppercase tracking-wider mb-1.5 opacity-60">journalist</div>
+              <span className="text-text-muted text-xs">thinking</span>
             </div>
           </div>
         )}
-
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Error bar */}
-      {error && (
-        <div className="mx-6 mb-2 px-3 py-2 rounded text-xs font-mono bg-error/5 text-error border border-error/20">
-          {error}
-        </div>
-      )}
+      {error && <div className="mx-4 sm:mx-6 mb-2"><Notice tone="error">{error}</Notice></div>}
 
-      {/* Input */}
-      <div className="border-t border-border px-6 py-4 shrink-0">
+      <div className="border-t border-border px-4 sm:px-6 py-4 shrink-0">
         <div className="flex gap-3 items-end">
+          <label htmlFor="interview-input" className="sr-only">Your message</label>
           <textarea
+            id="interview-input"
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -265,40 +265,34 @@ export default function ChatInterface() {
                 sendMessage();
               }
             }}
-            placeholder="Share your story..."
+            placeholder="What do you want to report?"
             rows={2}
+            maxLength={6000}
             disabled={loading || streaming}
-            className="flex-1 bg-bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:border-neon-green/30 focus:shadow-neon transition-all disabled:opacity-50"
+            className="flex-1 bg-bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:border-neon-green/30 transition-all disabled:opacity-50"
           />
-          <button
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || loading || streaming}
-            className="btn-primary !py-3 !px-5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
+          <button onClick={() => sendMessage()} disabled={!input.trim() || loading || streaming} className="btn-primary !py-3 !px-5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
             Send
           </button>
         </div>
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] font-mono text-text-muted">
-            shift+enter for newline
-          </span>
-          {!canPublish && messages.length > 0 && (
+          <span className="text-[10px] font-mono text-text-muted">shift+enter for a new line. sent to Google Gemini.</span>
+          {!canDraft && messages.length > 0 && (
             <span className="text-[10px] font-mono text-text-muted">
-              {MIN_MESSAGES_TO_PUBLISH - messages.length} more message
-              {MIN_MESSAGES_TO_PUBLISH - messages.length !== 1 && "s"} before
-              publishing
+              {MIN_MESSAGES_TO_DRAFT - messages.length} more before drafting
             </span>
           )}
         </div>
       </div>
 
-      {/* Article preview modal */}
-      {articlePreview && (
-        <ArticlePreview
-          article={articlePreview}
-          onConfirm={confirmPublish}
-          onCancel={() => setArticlePreview(null)}
-          publishing={publishing}
+      {draft && (
+        <ArticleEditor
+          draft={draft}
+          onEstimate={estimate}
+          onPublish={publish}
+          onCancel={() => setDraft(null)}
+          busy={busy}
+          error={editorError}
         />
       )}
     </div>

@@ -27,6 +27,10 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.data/
+contracts/target/
+contracts/.snfoundry_cache/
+test-results/
 
 # vercel
 .vercel

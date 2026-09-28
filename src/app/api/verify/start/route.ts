@@ -1,0 +1,21 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createReclaimRequest, reclaimConfigured } from "@/lib/reclaim";
+import { createVerificationRecord, saveVerificationRecord } from "@/lib/session";
+import { jsonError, rateLimited, tooManyRequests } from "@/lib/request";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(req: NextRequest) {
+  if (rateLimited(req, "verify-start", 10, 10 * 60 * 1000)) return tooManyRequests();
+  if (!reclaimConfigured()) {
+    return jsonError("Reclaim is not configured on this server", 503);
+  }
+  try {
+    const { verificationId, challenge } = createVerificationRecord();
+    const { requestJson, reclaimSessionId } = await createReclaimRequest(verificationId, challenge);
+    saveVerificationRecord(verificationId, challenge, reclaimSessionId);
+    return NextResponse.json({ verificationId, requestJson });
+  } catch {
+    return jsonError("Could not start a verification request", 500);
+  }
+}

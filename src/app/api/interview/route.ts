@@ -1,52 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifySessionToken } from "@/lib/session";
-import { conductInterviewStream } from "@/lib/gemini";
-import type { ChatMessage } from "@/lib/types";
+import { NextRequest } from "next/server";
+import { recordAiRequest, requireBondedCapability } from "@/lib/session";
+import { conductInterviewStream, geminiConfigured } from "@/lib/gemini";
+import { jsonError, rateLimited, readJson, tooManyRequests } from "@/lib/request";
+import { validMessages } from "@/lib/messages";
 
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  if (rateLimited(req, "interview", 40, 10 * 60 * 1000)) return tooManyRequests();
+  const body = await readJson<{ messages?: unknown; token?: string }>(req);
+  if (!body) return jsonError("Invalid request body", 400);
+
+  const gate = requireBondedCapability(body.token);
+  if ("error" in gate) {
+    return gate.error === "bond-blocked"
+      ? jsonError("The interview requires a confirmed bond, which is blocked on Sepolia", 403)
+      : jsonError("Invalid or expired session", 401);
+  }
+  if (!validMessages(body.messages)) return jsonError("Invalid messages", 400);
+  if (!geminiConfigured()) return jsonError("The AI interview is not configured", 503);
+  if (!recordAiRequest(body.token!)) {
+    return jsonError("This session has reached its AI request limit", 429);
+  }
+
   try {
-    const { messages, sessionToken } = (await req.json()) as {
-      messages: ChatMessage[];
-      sessionToken: string;
-    };
-
-    const credential = verifySessionToken(sessionToken);
-    if (!credential) {
-      return NextResponse.json(
-        { error: "Invalid or expired session" },
-        { status: 401 }
-      );
-    }
-
-    if (!messages || messages.length === 0) {
-      return NextResponse.json(
-        { error: "No messages provided" },
-        { status: 400 }
-      );
-    }
-
-    const stream = await conductInterviewStream(messages, credential);
-
+    const stream = await conductInterviewStream(body.messages, gate.record.credential);
     return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-      },
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
   } catch (error) {
-    console.error("Interview error:", error);
-    const message =
-      error instanceof Error ? error.message : "Interview request failed";
-
-    if (message.includes("429")) {
-      return NextResponse.json(
-        { error: "Rate limited. Please wait a moment and try again." },
-        { status: 429 }
-      );
-    }
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Interview request failed";
+    return jsonError(message, message.includes("429") ? 429 : 502);
   }
 }

@@ -1,153 +1,97 @@
-# Sovereign Journalist
+# Sovereign Journalist (Starknet Sepolia)
 
-Anonymous whistleblower platform where sources prove credentials via [Reclaim Protocol](https://reclaimprotocol.org) zkTLS, get interviewed by an AI journalist, and publish uncensorable stories to IPFS — all running inside an [EigenCloud](https://www.eigencloud.xyz/) Trusted Execution Environment so nobody (not even the operator) can access source identities.
+A source proves a credential with [Reclaim Protocol](https://reclaimprotocol.org), is interviewed by an AI, edits and approves an article, and the **entire approved article** is written into a Cairo contract on **Starknet Sepolia**. Readers, and anyone with an RPC endpoint, read it back from the chain. Nothing about the source, the interview, or the credential goes onchain.
 
-**Live (TEE):** http://34.26.214.35:8000
-**TEE Verification:** https://verify-sepolia.eigencloud.xyz/app/0xcD6e2638Eb88E82294F622d19c5C416b6E6C8eD4
+This is a testnet build. Mainnet is not configured and is refused by the code. Read [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what is proven, what is blocked, and why.
 
-### Built With
+## Honest summary of the privacy boundary
 
-[Reclaim Protocol](https://reclaimprotocol.org) | [EigenCloud](https://www.eigencloud.xyz/) | [Pinata](https://pinata.cloud) | [Google Gemini](https://ai.google.dev)
+- **Reclaim proves a login, not a claim.** The proof discloses whatever the provider template extracts. The UI shows the disclosed field names after verification.
+- **Google receives the interview.** Every interview message and the draft article are sent to the Gemini API. There is no confidential compute and no attestation in this build; `/api/attestation` says so.
+- **The article is public forever.** Only text the source approved is written, by the operator's publisher account, never by the source's wallet.
+- **The anonymous 1 STRK bond is blocked.** No verified private payment and refund path exists on Sepolia yet, so the server refuses every bond receipt rather than accept a public transfer that would link the source. Interview and publishing are therefore disabled unless the development bypass is on.
+- **Encrypted tips are blocked.** The STRK20 private messaging page is an RFP, not an API. A helper contract is drafted and tested but not deployed or wired.
 
-## How It Works
+Labels used in articles: **credential proven** (Reclaim proof verified), **allegation reported** (the source's account), **not independently corroborated** (the software never sets a corroborated label).
 
-1. **Verify** — Source proves their identity (e.g. employer, role) using [Reclaim Protocol](https://reclaimprotocol.org) zkTLS proofs. No personal info is revealed — only that the credential is valid.
-2. **Interview** — An AI journalist (Gemini) conducts a structured interview, asking follow-up questions based on the verified credential context.
-3. **Publish** — The article is generated from the interview transcript and published to IPFS via Pinata. It's permanently stored and uncensorable.
-4. **Trust** — The entire app runs inside an Intel TDX Trusted Execution Environment via [EigenCloud](https://www.eigencloud.xyz/) EigenCompute. The `/api/attestation` endpoint provides cryptographic proof of the execution environment.
+## Flow
 
-## Tech Stack
+1. `/submit`: privacy limits, costs, and live capability status.
+2. `/submit/verify`: server creates a signed Reclaim request bound to a fresh challenge, the browser runs the flow, the server verifies the proof once and issues a 2 hour token plus a recovery code.
+3. `/submit/bond`: shows the 1 STRK Sepolia bond, currently blocked with the missing dependencies.
+4. `/submit/interview`: disclosure gate, then the interview, then the editor with byte counters, a Sepolia fee estimate, and an irreversibility acknowledgement.
+5. Publish: the server submits `publish_article`, waits for `ACCEPTED_ON_L2`, reads every chunk back and compares byte for byte, then shows the article id and transaction.
+6. `/article/<id>`: rendered from Starknet with a provenance panel. Legacy `/article/<cid>` links render read-only from IPFS.
+7. `/submit/recover`: recovery code entry after a lost tab or failed request.
 
-- **Next.js 14** — App Router, server components, API routes
-- **[Reclaim Protocol](https://reclaimprotocol.org)** — zkTLS credential verification (proves identity without revealing it)
-- **[Google Gemini](https://ai.google.dev)** — AI journalist for conducting interviews and generating articles
-- **IPFS / [Pinata](https://pinata.cloud)** — Decentralized, permanent article storage
-- **[EigenCloud](https://www.eigencloud.xyz/) EigenCompute** — Trusted Execution Environment (Intel TDX) deployment
-- **Tailwind CSS** — Dark-themed UI with neon accents
+## Repository layout
 
-## Prerequisites
+```
+contracts/article_registry   append-only Cairo registry (title, subtitle, body as 31-byte chunks)
+contracts/tip_inbox          draft STRK20 privacy_invoke helper for encrypted tips (not deployed)
+src/app/api                  verify/start, verify, recover, cancel, bond, tips, interview, generate,
+                             publish/estimate, publish, articles, articles/[id], capabilities, attestation
+src/lib                      onchain.ts (encoding, fee, publish, read-back), session.ts (one-use store),
+                             reclaim.ts, gemini.ts, capabilities.ts, request.ts, legacy.ts
+scripts                      check-sepolia, deploy-sepolia, benchmark-articles, readback-verify, check-dashes
+tests                        vitest unit and route tests
+docs                         ARCHITECTURE, THREAT_MODEL, COMPATIBILITY, MIGRATION, MAINNET_CHECKLIST, TEST_REPORT
+```
 
-- Node.js 18+
-- npm
-- API keys (see below)
+## Running locally
 
-## Local Development
-
-1. Clone the repo:
+Requirements: Node 22, npm, Scarb 2.14.0, Starknet Foundry 0.57.0.
 
 ```bash
-git clone https://github.com/RealAdii/sovereign-journalist.git
-cd sovereign-journalist
+npm ci
+cp .env.example .env.local        # fill in the server-only values you have
+npm run typecheck && npm run lint && npm test && npm run build
+npm run build:contracts && npm run test:contracts
+npm run check:sepolia             # read-only, works with no secrets
+npm run dev                       # http://localhost:3000
 ```
 
-2. Install dependencies:
+To exercise the interview and publishing locally without a bond, set `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` in `.env.local`. This is refused when `NODE_ENV=production` and the UI states that no anonymity is claimed.
+
+### Environment
+
+All secrets are server-only. No `NEXT_PUBLIC_*` variable holds a secret. See `.env.example` and [docs/MIGRATION.md](docs/MIGRATION.md) for the required Reclaim secret rotation.
+
+| Variable | Purpose |
+| --- | --- |
+| `STARKNET_SEPOLIA_RPC_URL` | keyed Sepolia RPC (public fallbacks are listed in docs/COMPATIBILITY.md) |
+| `NEXT_PUBLIC_ARTICLE_REGISTRY_ADDRESS` | deployed registry, from `npm run deploy:sepolia` |
+| `STARKNET_PUBLISHER_ADDRESS`, `STARKNET_PUBLISHER_PRIVATE_KEY` | the only account allowed to publish, funded with Sepolia STRK |
+| `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID` | Reclaim, server side only |
+| `GEMINI_API_KEY` | Google Gemini |
+| `SESSION_SECRET`, `RATE_LIMIT_SECRET` | two independent random values, 32+ characters, no fallback |
+| `SESSION_STORE_PATH` | file for the one-use session store, required in production, single instance only |
+| `NEXT_PUBLIC_STRK20_POOL_ADDRESS` | Sepolia privacy pool, used only for the live capability check |
+
+## Deploying the contract to Sepolia
 
 ```bash
-npm install
+npm run build:contracts
+npm run deploy:sepolia        # declares, deploys, writes deployments/sepolia.json
+npm run benchmark:sepolia     # publishes short, typical, long fixtures and records fees and latency
+npm run readback:sepolia -- <articleId> [expected.json]   # independent byte-for-byte read-back
 ```
 
-3. Create `.env.local` from the example:
+These need a funded publisher account and were not run for this change (no secrets were available). [docs/TEST_REPORT.md](docs/TEST_REPORT.md) lists exactly what ran.
 
-```bash
-cp .env.example .env.local
-```
+## Contract
 
-4. Fill in your API keys in `.env.local`:
+`ArticleRegistry` stores full UTF-8 title (up to 180 bytes), subtitle (up to 420), and body (up to 24576) as 31-byte felt chunks in persistent storage, with byte lengths, chunk counts, publish timestamp, version, and the approved digest. The article id is the digest of the approved text, so a changed preview cannot be published under an approved id. Only the configured publisher can write; duplicates are rejected; reads are paginated (128 chunks per call). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-| Variable | Where to get it |
-|----------|----------------|
-| `NEXT_PUBLIC_RECLAIM_APP_ID` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) |
-| `NEXT_PUBLIC_RECLAIM_APP_SECRET` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) |
-| `NEXT_PUBLIC_RECLAIM_PROVIDER_ID` | [Reclaim Protocol Developer Portal](https://dev.reclaimprotocol.org/) (choose a provider) |
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) |
-| `PINATA_API_KEY` | [Pinata](https://app.pinata.cloud/developers/api-keys) |
-| `PINATA_SECRET_KEY` | Pinata |
-| `SESSION_SECRET` | Any random string (e.g. `openssl rand -hex 32`) |
+## Documentation
 
-5. Run the dev server:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): diagram, encoding, contract interface
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): who sees what, threats, mitigations, explicit non-claims
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): versions, RPC checks, pool check, bond and tip blockers
+- [docs/MIGRATION.md](docs/MIGRATION.md): IPFS and EigenCompute to Sepolia, legacy links, secret rotation
+- [docs/MAINNET_CHECKLIST.md](docs/MAINNET_CHECKLIST.md): separate gate before any mainnet work
+- [docs/TEST_REPORT.md](docs/TEST_REPORT.md): actual outputs and what was not run
 
-```bash
-npm run dev
-```
+## Built with
 
-6. Open http://localhost:3000
-
-## Project Structure
-
-```
-src/
-  app/
-    page.tsx                    # Homepage — article feed
-    submit/
-      page.tsx                  # Step 1: Start submission
-      verify/page.tsx           # Step 2: zkTLS credential verification
-      interview/page.tsx        # Step 3: AI interview + publish
-    article/[cid]/page.tsx      # Article reader (fetches from IPFS)
-    api/
-      verify/route.ts           # Reclaim proof verification
-      interview/route.ts        # AI interview (streaming chat)
-      generate/route.ts         # Article generation from transcript
-      publish/route.ts          # Publish article to IPFS
-      attestation/route.ts      # TEE attestation proof endpoint
-  components/                   # UI components (chat, verification, etc.)
-  lib/
-    gemini.ts                   # Gemini API client
-    pinata.ts                   # IPFS/Pinata client
-    reclaim.ts                  # Reclaim Protocol SDK helpers
-    session.ts                  # Server-side session management
-    types.ts                    # TypeScript types
-```
-
-## Docker
-
-The app is containerized for TEE deployment. To build locally:
-
-```bash
-docker build \
-  --build-arg NEXT_PUBLIC_RECLAIM_APP_ID=<your-id> \
-  --build-arg NEXT_PUBLIC_RECLAIM_APP_SECRET=<your-secret> \
-  --build-arg NEXT_PUBLIC_RECLAIM_PROVIDER_ID=<your-provider> \
-  --build-arg NEXT_PUBLIC_PINATA_GATEWAY=https://gateway.pinata.cloud \
-  --build-arg NEXT_PUBLIC_APP_URL=http://localhost:8000 \
-  -t sovereign-journalist .
-
-docker run --rm -p 8000:8000 \
-  -e GEMINI_API_KEY=<key> \
-  -e PINATA_API_KEY=<key> \
-  -e PINATA_SECRET_KEY=<key> \
-  -e SESSION_SECRET=<secret> \
-  sovereign-journalist
-```
-
-The Docker image uses a multi-stage Alpine build with Next.js standalone output (~200MB final image). `NEXT_PUBLIC_*` variables are baked in at build time; server-side secrets are injected at runtime.
-
-## EigenCompute TEE Deployment
-
-The app is deployed to [EigenCloud](https://www.eigencloud.xyz/) EigenCompute on the Sepolia testnet, running inside an Intel TDX Trusted Execution Environment.
-
-**What this means:** The code running the AI journalist is tamper-proof and verifiable. Nobody — not even the server operator — can access source identities, modify interview logic, or read encryption keys. This is "trust by math, not trust by promise."
-
-To deploy your own instance:
-
-1. Install the CLI: `npm install -g @layr-labs/ecloud-cli`
-2. Authenticate: `ecloud auth generate --store`
-3. Subscribe: `ecloud billing subscribe`
-4. Fund your wallet with Sepolia ETH (see [faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia))
-5. Push your Docker image to a public registry (e.g. ghcr.io)
-6. Deploy: `ecloud compute app deploy --image-ref <your-image> --environment sepolia`
-
-The GitHub Actions workflow (`.github/workflows/docker-build.yml`) automates this entire process.
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/verify` | POST | Verify a [Reclaim Protocol](https://reclaimprotocol.org) zkTLS proof |
-| `/api/interview` | POST | Send a message in the AI interview |
-| `/api/generate` | POST | Generate article from interview transcript |
-| `/api/publish` | POST | Publish article to IPFS |
-| `/api/attestation` | GET | TEE attestation proof and environment info |
-
-## License
-
-MIT
+[Reclaim Protocol](https://reclaimprotocol.org) · [Starknet](https://docs.starknet.io/) · [starknet.js 10.4.0](https://github.com/starknet-io/starknet.js) · [STRK20](https://strk20.starknet.io/) (blocked paths) · [Google Gemini](https://ai.google.dev)

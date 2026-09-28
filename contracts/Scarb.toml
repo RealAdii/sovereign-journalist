@@ -1,0 +1,15 @@
+[workspace]
+members = ["article_registry", "tip_inbox"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024_07"
+
+[workspace.dependencies]
+starknet = ">=2.10.1"
+snforge_std = "0.57.0"
+
+[[workspace.tool.snforge.fork]]
+name = "SEPOLIA_LATEST"
+url = "https://api.zan.top/public/starknet-sepolia"
+block_id.tag = "latest"

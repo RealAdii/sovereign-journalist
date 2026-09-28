@@ -7,8 +7,8 @@ export default function InterviewPage() {
     <>
       <Header />
       <main className="pt-14">
-        <div className="pt-4 px-6">
-          <StepIndicator currentStep={2} />
+        <div className="pt-4 px-4 sm:px-6">
+          <StepIndicator currentStep={3} />
         </div>
         <ChatInterface />
       </main>

@@ -15,8 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Sovereign Journalist",
   description:
-    "Anonymous whistleblower platform powered by zkTLS credential verification and AI interviews. Prove who you are without revealing your identity.",
-  keywords: ["whistleblower", "zkTLS", "journalism", "anonymous", "IPFS"],
+    "Sources prove a credential with Reclaim Protocol, approve an article, and publish the full text to a Starknet Sepolia contract.",
+  keywords: ["journalism", "Reclaim Protocol", "Starknet", "Sepolia", "source protection"],
 };
 
 export default function RootLayout({
