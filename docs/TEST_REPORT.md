@@ -181,6 +181,13 @@ Backend: OpenRouter pinned to provider `phala` (`provider: { only: ["phala"], al
 
 What this proves and what it does not: OpenRouter reports `provider: "Phala"` on every response, and Phala's endpoints run models in GPU TEEs, but OpenRouter does not forward Phala's attestation report or signed receipts, so this app cannot independently verify the TEE claim on this path. The UI says exactly that. The directly attested path needs a Phala Cloud API key (WP1).
 
+## Hosted preview on Vercel (2026-09-29, 00:45 UTC)
+
+- Project `adithya-dineshs-projects/sovereign-journalist`, preview deployment of the `testing` branch, aliased to https://sovereign-journalist-testing.vercel.app. Deployment protection was removed from the project so the preview is publicly reachable; production has not been deployed.
+- Sessions live in the Neon Postgres database that the Vercel Neon integration provisioned (`SESSION_STORE_URL` = the pooled `POSTGRES_URL`), so verification polling works across serverless instances.
+- Verified from outside: `/` lists the three benchmark articles read from Sepolia; `/article/<id>` renders three headings; `/api/capabilities` reports registry enabled, AI enabled (OpenRouter to Phala, DeepSeek V3.2), bond and tips blocked pending the treasury; `POST /api/verify/start` returned a signed js-5.8.2 Reclaim request for provider version 2.0.1, which wrote a verification record to Neon.
+- Not yet exercised on the host: a full Reclaim login, an interview, and a publish. The dev bypass is off on the host, so the interview is reachable only once the private bond is live.
+
 ## Browser flow tests (`npm run test:e2e`, Playwright 1.55, Chromium)
 
 These drive the real Next.js dev server with `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` and mock only the routes that need secrets or Sepolia (`/api/interview`, `/api/generate`, `/api/publish/estimate`, `/api/publish`, `/api/recover` where a fake code must succeed, `/api/bond` for the blocked variant). They are UI flow tests with a mocked backend, not a Sepolia publication.

@@ -2,6 +2,8 @@
 
 A source proves a credential with [Reclaim Protocol](https://reclaimprotocol.org), is interviewed by an AI, edits and approves an article, and the **entire approved article** is written into a Cairo contract on **Starknet Sepolia**. Readers, and anyone with an RPC endpoint, read it back from the chain. Nothing about the source, the interview, or the credential goes onchain.
 
+Public test deployment: https://sovereign-journalist-testing.vercel.app (Vercel preview of the `testing` branch, Neon sessions, OpenRouter to Phala for the interview).
+
 This is a testnet build. The registry is deployed on Sepolia at `0x2be142c378dbf4f9480196d484b9e22363887ef523ee3cde332a4fa2fe4f6f0` (see docs/TEST_REPORT.md for class hash, transactions, and measured fees). Mainnet is not configured and is refused by the code. Read [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for what is proven, what is blocked, and why.
 
 ## Honest summary of the privacy boundary

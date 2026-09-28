@@ -19,7 +19,7 @@
     "integration": "Private 1 STRK bond paid through the pool to a treasury wallet and refunded privately (privacy SDK server side, Wallet API in the browser); encrypted tip helper contract drafted (contracts/tip_inbox), not deployed.",
     "status": "bond integration in progress on the testing branch; article registry live"
   },
-  "demo_url": "",
+  "demo_url": "https://sovereign-journalist-testing.vercel.app",
   "demo_video": "",
   "docs": [
     "README.md",
