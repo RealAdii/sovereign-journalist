@@ -98,6 +98,15 @@ What the operator learns: the refund recipient address (a pool identity the sour
 
 Without the `BOND_*` environment the server behaves as before: `POST /api/bond` returns 503 with the missing list, and a public ERC-20 transfer is never accepted as a substitute. `ALLOW_DEV_WITHOUT_PRIVATE_BOND=true` remains a development-only bypass refused in production.
 
+### Live bond setup attempt (2026-09-29, 01:55 IST)
+
+| Step | Result |
+| --- | --- |
+| Treasury `0x06855B277a085862479Ff2029648c002a245B86d27D935FA2CdbBA2e84BDfBd0` | Address matches a Ready (Argent v0.4) account for the supplied key; deployed by us with `deployAccount` (tx `0xa69309daeb804880d1af851b8522dc2776c3e57a309f28b821edf70a84875f`), funded with 20 STRK from the publisher (tx `0x4e20a6c2d5b93fb03905e78d1ac31dd118f252800a3144f0159a72a0264de93`), balance 20.97 STRK |
+| `npm run bond:setup -- --shield 10` (register viewing key) | The SDK built the register action, `transaction-prover.alpha-sepolia.sw-dev.io` returned a proof whose facts start with `PROOF1`, and `starknet_estimateFee` on Sepolia (Alchemy node, RPC 0.10.3) rejected it: `Invalid proof facts: Proof version 88314448135729 (PROOF1) is not allowed under this protocol version.` |
+| SDK proof-version constant | `sdk/src/utils/proof-facts.ts` expects `PROOF0` in both the vendored 0.14.3-rc.8 (2026-09-15) and upstream `main` (2026-09-28, f9256c5). The hosted Sepolia prover has moved to `PROOF1` ahead of the pool or the node. A hackathon issue (starkience/strk20-hackathon #147) documents the mirror case, `PROOF0 ... not allowed`, from August. |
+| Consequence | Registration, note discovery and refunds cannot run until StarkWare publishes the prover URL and SDK release that agree on the proof version for Sepolia. The bond code path is complete and unit tested; the UI keeps reporting the bond as blocked with this reason. The user is on the STRK20 team and can ask which pair is current. |
+
 ## Encrypted tips through the pool: BLOCKED
 
 | Requirement | Status |

@@ -1,6 +1,6 @@
 # Sovereign Journalist Sepolia handoff
 
-Last updated: 2026-09-29 01:25 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
+Last updated: 2026-09-29 02:00 Asia/Kolkata (agent 2, Claude, continuing from Codex). Earlier timestamps in this file from agent 2 were about 25 minutes ahead of wall clock.
 
 Committed on `sepolia-rewrite`: 9379fcc (rebuild), fee8661 (Reclaim binding fix), 6984425, and 4eb2ddd (Playwright e2e, pool ABI findings). Working tree clean. Not pushed.
 
@@ -92,6 +92,12 @@ Build the Sepolia-only version specified in `Downloads/Sovereign_Journalist_Sepo
 - `.env.local` exists (git-ignored, mode 600). It holds the Reclaim app id and secret copied from `~/network-fork/.env.local` (the Network project's Reclaim app, LinkedIn provider by default, X provider commented). `POST /api/verify/start` returned 200 with a signed request, sessionId, and resolvedProviderVersion 4.0.0, so the app credentials are valid. The old Sovereign Journalist Reclaim app only exists as GitHub Actions secrets (`NEXT_PUBLIC_RECLAIM_*` on RealAdii/sovereign-journalist), which cannot be read back and were exposed in bundles; rotate or delete them.
 - Fresh SESSION_SECRET and RATE_LIMIT_SECRET generated. Dev bypass on.
 - Still empty: STARKNET_SEPOLIA_RPC_URL (user is fetching), STARKNET_PUBLISHER_ADDRESS and PRIVATE_KEY (no funded Sepolia account yet), GEMINI_API_KEY (not found on disk; old value only in GitHub secrets).
+
+## Treasury and bond attempt (02:00)
+
+- New treasury from the user: `0x06855B277a085862479Ff2029648c002a245B86d27D935FA2CdbBA2e84BDfBd0`, key and a fresh 250-bit viewing key in `.env.local` (`BOND_TREASURY_PRIVATE_KEY`, `BOND_VIEWING_KEY`). Account deployed by us (Ready/Argent v0.4 class, constructor [0, pubkey, 1], salt pubkey) and funded with 20 STRK from the publisher.
+- `bond:setup` fails at the proving step: prover emits PROOF1, Sepolia rejects it ("not allowed under this protocol version"); SDK expects PROOF0. Details in docs/COMPATIBILITY.md. Blocked on StarkWare (prover URL + SDK release pairing). Nothing else to do on our side; retry `npm run bond:setup -- --shield 10` once they confirm.
+- `docs/architecture.excalidraw` added (three-lane diagram: browser, server, outside services).
 
 ## Hosted preview live (01:25)
 
